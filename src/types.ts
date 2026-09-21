@@ -120,6 +120,9 @@ export interface NotificationSettings {
   browserNotifications: boolean;
   checkIntervalDefault: number; // 15
   autoOpenIrctc: boolean;
+  emailNotifications?: boolean;
+  emailAddress?: string;
+  emailAlertFormat?: 'detailed' | 'summary';
 }
 
 export interface AlertHistoryItem {

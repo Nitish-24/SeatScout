@@ -1,6 +1,7 @@
 import { RADAR_CONFIG } from './radarConfig.js';
 import { RadarStore } from './radarStore.js';
 import { PushService } from './pushService.js';
+import { EmailNotificationService } from './emailNotificationService.js';
 import { 
   RadarJob, 
   MonitoredTrainStatus, 
@@ -258,6 +259,28 @@ export class RadarScheduler {
       };
 
       await PushService.sendPushToClient(radar.clientId, pushPayload);
+
+      // Long-form Email Alert dispatch if client has email notifications enabled
+      const emailPref = EmailNotificationService.getClientEmailPreference(radar.clientId);
+      if (emailPref && emailPref.enabled && emailPref.email) {
+        EmailNotificationService.sendLongFormSeatAlert({
+          to: emailPref.email,
+          trainNumber: trainNo,
+          trainName: radar.trainName || trainNo,
+          fromStation: radar.fromCode,
+          toStation: radar.toCode,
+          journeyDate: radar.journeyDate,
+          travelClass: radar.travelClass,
+          quota: radar.quota,
+          availableBerths: result.seatsCount,
+          statusCode: result.statusCode,
+          departureTime: radar.departureTime,
+          bookingUrl: 'https://www.irctc.co.in/nget/train-search',
+          format: emailPref.format
+        }).catch((err) => {
+          console.error(`[RadarScheduler] Error dispatching email alert to ${emailPref.email}:`, err);
+        });
+      }
     } else {
       // Normal monitoring tick (seats unavailable or unchanged)
       RadarStore.updateRadar(radar.id, {
@@ -457,6 +480,27 @@ export class RadarScheduler {
       };
 
       await PushService.sendPushToClient(radar.clientId, pushPayload);
+
+      // Long-form Email Alert dispatch for Route Radar
+      const emailPref = EmailNotificationService.getClientEmailPreference(radar.clientId);
+      if (emailPref && emailPref.enabled && emailPref.email) {
+        EmailNotificationService.sendLongFormSeatAlert({
+          to: emailPref.email,
+          trainNumber: primaryTrain.trainNumber,
+          trainName: primaryTrain.trainName,
+          fromStation: radar.fromCode,
+          toStation: radar.toCode,
+          journeyDate: radar.journeyDate,
+          travelClass: radar.travelClass,
+          quota: radar.quota,
+          availableBerths: primaryTrain.seatsCount,
+          statusCode: primaryTrain.statusCode,
+          bookingUrl: 'https://www.irctc.co.in/nget/train-search',
+          format: emailPref.format
+        }).catch((err) => {
+          console.error(`[RadarScheduler] Error dispatching email alert for route to ${emailPref.email}:`, err);
+        });
+      }
     } else {
       // Normal monitoring tick for route
       RadarStore.updateRadar(radar.id, {

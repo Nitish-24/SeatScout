@@ -10,7 +10,10 @@ export const DEFAULT_SETTINGS: NotificationSettings = {
   volume: 0.85,
   browserNotifications: true,
   checkIntervalDefault: 15,
-  autoOpenIrctc: false
+  autoOpenIrctc: false,
+  emailNotifications: false,
+  emailAddress: '',
+  emailAlertFormat: 'detailed'
 };
 
 export function getStoredSettings(): NotificationSettings {

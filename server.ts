@@ -10,6 +10,7 @@ import {
 } from './server/realIrctcService.js';
 import { radarRouter } from './server/radarRouter.js';
 import { phoneNotificationRouter } from './server/phoneNotificationRouter.js';
+import { emailNotificationRouter } from './server/emailNotificationRouter.js';
 import { RadarScheduler } from './server/radarScheduler.js';
 
 const app = express();
@@ -25,6 +26,9 @@ app.use('/api/radar', radarRouter);
 
 // Phone OTP Validation and SMS / Web Notification REST API
 app.use('/api/notifications/phone', phoneNotificationRouter);
+
+// Long-Form Seat Alert Email Notification REST API
+app.use('/api/notifications/email', emailNotificationRouter);
 
 // API: Network Health & IRCTC Gateway Connectivity Status
 app.get('/api/irctc/health', (req, res) => {
