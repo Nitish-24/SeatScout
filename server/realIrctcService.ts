@@ -21,7 +21,10 @@ export interface IrctcLiveTrainItem {
   trainNumber: string;
   trainName: string;
   fromStnCode: string;
+  fromStnName?: string;
   toStnCode: string;
+  toStnName?: string;
+  isNearby?: boolean;
   departureTime: string;
   arrivalTime: string;
   duration: string;
@@ -96,11 +99,11 @@ function handleGatewayFailure(name: string, err: any) {
   const errCode = err?.cause?.code || err?.code || err?.name || 'TIMEOUT';
   const isConnectTimeout = errCode === 'UND_ERR_CONNECT_TIMEOUT' || errCode === 'ETIMEDOUT' || errCode === 'ECONNREFUSED' || err?.name === 'TimeoutError' || err?.name === 'AbortError';
 
-  if (isConnectTimeout || b.failures >= 2) {
-    b.cooldownUntil = Date.now() + 60_000;
-    console.log(`[RealIRCTC] Upstream ${name} gateway connection issue (${errCode}). Cooldown active for 60s; using local backup engine.`);
+  if (isConnectTimeout || b.failures >= 3) {
+    b.cooldownUntil = Date.now() + 5_000;
+    console.log(`[RealIRCTC] Upstream ${name} gateway connection issue (${errCode}). Cooldown active for 5s.`);
   } else {
-    console.log(`[RealIRCTC] Upstream ${name} gateway notice (${errCode}). Switching to backup.`);
+    console.log(`[RealIRCTC] Upstream ${name} gateway notice (${errCode}).`);
   }
 }
 
@@ -198,7 +201,7 @@ export async function fetchRealIrctcTrains(
       ixigoSearchUrl.searchParams.set('quota', quota.toUpperCase());
 
       const res = await fetch(ixigoSearchUrl.toString(), {
-        signal: AbortSignal.timeout(3500),
+        signal: AbortSignal.timeout(6000),
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'application/json, text/plain, */*',
@@ -210,9 +213,15 @@ export async function fetchRealIrctcTrains(
       if (res.ok) {
         handleGatewaySuccess('ixigo');
         const json = await res.json();
-        const trainList = json.data?.trainList;
-        if (Array.isArray(trainList) && trainList.length > 0) {
-          const mapped: IrctcLiveTrainItem[] = trainList.map((t: any) => {
+        const trainList: any[] = json.data?.trainList || [];
+        const nearbyList: any[] = json.data?.nearbyTrains || [];
+
+        // Genuine Indian Railway trains: prefer direct trains, otherwise show real nearby/alternative trains
+        const rawList = trainList.length > 0 ? trainList : nearbyList;
+        const isNearbyResult = trainList.length === 0 && nearbyList.length > 0;
+
+        if (Array.isArray(rawList) && rawList.length > 0) {
+          const mapped: IrctcLiveTrainItem[] = rawList.map((t: any) => {
             // Parse running days string like '1111111'
             const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
             let runsOn: string[] = [];
@@ -246,7 +255,10 @@ export async function fetchRealIrctcTrains(
               trainNumber: t.trainNumber,
               trainName: t.trainName,
               fromStnCode: t.fromStnCode || cleanFrom,
+              fromStnName: t.fromStnName || '',
               toStnCode: t.toStnCode || cleanTo,
+              toStnName: t.toStnName || '',
+              isNearby: isNearbyResult,
               departureTime: t.departureTime,
               arrivalTime: t.arrivalTime,
               duration: formatIRCTCDuration(t.duration),

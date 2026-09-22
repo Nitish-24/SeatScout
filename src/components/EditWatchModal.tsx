@@ -9,12 +9,16 @@ import {
 import { 
   SeatScoutWatch, 
   TrainClass, 
-  QuotaType 
+  QuotaType,
+  Station,
+  TrainSchedule
 } from '../types';
-import { POPULAR_STATIONS, QUOTA_DETAILS, getTrainsForRoute, CLASS_LABELS } from '../data/trainData';
+import { POPULAR_STATIONS, QUOTA_DETAILS, CLASS_LABELS } from '../data/trainData';
 import { DatePickerCalendar } from './DatePickerCalendar';
 import { ChartingCountdownWidget } from './ChartingCountdownWidget';
 import { calculateEstimatedChartingTime } from '../utils/chartingTime';
+import { StationAutocomplete } from './StationAutocomplete';
+import { fetchLiveTrains } from '../services/railwayApi';
 
 interface EditWatchModalProps {
   watch: SeatScoutWatch;
@@ -31,8 +35,8 @@ export const EditWatchModal: React.FC<EditWatchModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const [fromCode, setFromCode] = useState<string>(watch.fromStation.code);
-  const [toCode, setToCode] = useState<string>(watch.toStation.code);
+  const [fromStation, setFromStation] = useState<Station>(watch.fromStation);
+  const [toStation, setToStation] = useState<Station>(watch.toStation);
   const [journeyDate, setJourneyDate] = useState<string>(watch.journeyDate);
   const [trainNumber, setTrainNumber] = useState<string>(watch.trainNumber || '12012');
   const [travelClass, setTravelClass] = useState<TrainClass>(watch.travelClass || 'CC');
@@ -40,32 +44,42 @@ export const EditWatchModal: React.FC<EditWatchModalProps> = ({
 
   // Reset internal state when modal opens with a different watch
   useEffect(() => {
-    setFromCode(watch.fromStation.code);
-    setToCode(watch.toStation.code);
+    setFromStation(watch.fromStation);
+    setToStation(watch.toStation);
     setJourneyDate(watch.journeyDate);
     setTrainNumber(watch.trainNumber || '12012');
     setTravelClass(watch.travelClass || 'CC');
     setQuota(watch.quota || 'GN');
   }, [watch]);
 
-  // Station Lookups
-  const fromStation = POPULAR_STATIONS.find((s) => s.code === fromCode) || watch.fromStation;
-  const toStation = POPULAR_STATIONS.find((s) => s.code === toCode) || watch.toStation;
+  // Available real trains for this corridor dynamically from official IRCTC live timetable
+  const [availableTrains, setAvailableTrains] = useState<TrainSchedule[]>([]);
+  const [isLoadingTrains, setIsLoadingTrains] = useState<boolean>(false);
 
-  // Available trains for this corridor dynamically
-  const availableTrains = useMemo(() => {
-    return getTrainsForRoute(fromCode, toCode);
-  }, [fromCode, toCode]);
-
-  // Auto-sync train number if not in availableTrains
   useEffect(() => {
-    if (availableTrains.length > 0) {
-      const match = availableTrains.find((t) => t.number === trainNumber);
-      if (!match) {
-        setTrainNumber(availableTrains[0].number);
-      }
-    }
-  }, [availableTrains, trainNumber]);
+    let cancelled = false;
+    setIsLoadingTrains(true);
+    fetchLiveTrains(fromStation.code, toStation.code, journeyDate, quota)
+      .then((res) => {
+        if (!cancelled) {
+          const list = Array.isArray(res?.trains) ? res.trains : [];
+          setAvailableTrains(list);
+          if (list.length > 0 && !list.some((t) => t.number === trainNumber)) {
+            setTrainNumber(list[0].number);
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAvailableTrains([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingTrains(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fromStation.code, toStation.code, journeyDate, quota]);
 
   const selectedTrain = useMemo(() => {
     return availableTrains.find((t) => t.number === trainNumber) || availableTrains[0] || null;
@@ -127,37 +141,25 @@ export const EditWatchModal: React.FC<EditWatchModalProps> = ({
 
         <form onSubmit={handleSave} className="space-y-4 text-xs">
           
-          {/* Origin and Destination */}
+          {/* Origin and Destination with all 9,000+ Indian Railway Stations */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-slate-300 font-semibold mb-1">Origin (From)</label>
-              <select
-                value={fromCode}
-                onChange={(e) => setFromCode(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-750 rounded-xl px-3 py-2 text-white font-medium focus:border-emerald-500 focus:outline-none"
-              >
-                {POPULAR_STATIONS.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.city} ({s.code}) - {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <StationAutocomplete
+              id="edit-from-station"
+              label="Origin (From)"
+              value={fromStation.code}
+              disabledCode={toStation.code}
+              onChange={(s) => setFromStation(s)}
+              placeholder="Search origin station or city..."
+            />
 
-            <div>
-              <label className="block text-slate-300 font-semibold mb-1">Destination (To)</label>
-              <select
-                value={toCode}
-                onChange={(e) => setToCode(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-750 rounded-xl px-3 py-2 text-white font-medium focus:border-emerald-500 focus:outline-none"
-              >
-                {POPULAR_STATIONS.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.city} ({s.code}) - {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <StationAutocomplete
+              id="edit-to-station"
+              label="Destination (To)"
+              value={toStation.code}
+              disabledCode={fromStation.code}
+              onChange={(s) => setToStation(s)}
+              placeholder="Search destination station or city..."
+            />
           </div>
 
           {/* Journey Date with Interactive Calendar */}
@@ -179,9 +181,15 @@ export const EditWatchModal: React.FC<EditWatchModalProps> = ({
             >
               {availableTrains.map((t) => (
                 <option key={t.number} value={t.number}>
-                  {t.number} - {t.name} ({t.departureTime} dep)
+                  {t.number} - {t.name} ({t.departureTime} dep) {t.isNearby ? `[${t.fromCode}→${t.toCode}]` : ''}
                 </option>
               ))}
+              {availableTrains.length === 0 && !isLoadingTrains && (
+                <option value={trainNumber} disabled>No scheduled trains found on this route</option>
+              )}
+              {isLoadingTrains && (
+                <option value="LOADING" disabled>Loading live Indian Railways timetable...</option>
+              )}
             </select>
           </div>
 

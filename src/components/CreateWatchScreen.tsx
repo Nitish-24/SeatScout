@@ -7,23 +7,27 @@ import {
   Search,
   RefreshCw,
   ChevronDown,
-  Radio
+  Radio,
+  Train,
+  AlertCircle
 } from 'lucide-react';
 import { 
   Station, 
   TrainClass, 
   QuotaType, 
-  SeatScoutWatch,
+  SeatScoutWatch, 
   TrainSchedule,
   ServerRadarJob
 } from '../types';
-import { POPULAR_STATIONS, POPULAR_ROUTES, getTrainsForRoute } from '../data/trainData';
+import { POPULAR_STATIONS, POPULAR_ROUTES } from '../data/trainData';
 import { DatePickerCalendar, formatDateISO } from './DatePickerCalendar';
 import { IxigoAvailabilityStrip } from './IxigoAvailabilityStrip';
 import { ChartingCountdownWidget } from './ChartingCountdownWidget';
 import { calculateEstimatedChartingTime } from '../utils/chartingTime';
 import { fetchLiveTrains } from '../services/railwayApi';
 import { TrainSortAndFilterBar } from './TrainSortAndFilterBar';
+import { StationAutocomplete } from './StationAutocomplete';
+import { getCachedStation } from '../services/stationService';
 import { RadarApiService } from '../services/radarApiService';
 import { PushNotificationService } from '../services/pushNotification';
 import {
@@ -61,8 +65,8 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
   const [journeyDate, setJourneyDate] = useState<string>(defaultJourneyDate);
   const [quota, setQuota] = useState<QuotaType>('GN');
   const [trainQuery, setTrainQuery] = useState<string>('');
-  const [isLoadingTrains, setIsLoadingTrains] = useState<boolean>(false);
-  const [trainsList, setTrainsList] = useState<TrainSchedule[]>(() => getTrainsForRoute('CDG', 'NDLS'));
+  const [isLoadingTrains, setIsLoadingTrains] = useState<boolean>(true);
+  const [trainsList, setTrainsList] = useState<TrainSchedule[]>([]);
   const [trainSelectedClasses, setTrainSelectedClasses] = useState<Record<string, TrainClass>>({});
 
   // Sort & Time Category Filter States
@@ -90,14 +94,14 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
     });
   }, [trainsList, selectedSlots, slotTarget, sortBy, trainQuery]);
 
-  // Station lookups
-  const fromStation = POPULAR_STATIONS.find((s) => s.code === fromStationCode) || {
+  // Station lookups across all 9,000+ Indian Railway stations
+  const fromStation = getCachedStation(fromStationCode) || POPULAR_STATIONS.find((s) => s.code === fromStationCode) || {
     code: fromStationCode,
-    name: `${fromStationCode} Junction`,
+    name: `${fromStationCode} Station`,
     city: fromStationCode,
     state: ''
   };
-  const toStation = POPULAR_STATIONS.find((s) => s.code === toStationCode) || {
+  const toStation = getCachedStation(toStationCode) || POPULAR_STATIONS.find((s) => s.code === toStationCode) || {
     code: toStationCode,
     name: `${toStationCode} Station`,
     city: toStationCode,
@@ -107,12 +111,14 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
   const handleManualSearch = async () => {
     setIsLoadingTrains(true);
     try {
-      const res = await fetchLiveTrains(fromStationCode, toStationCode, journeyDate, quota, trainQuery);
-      if (res && res.trains) {
+      const res = await fetchLiveTrains(fromStationCode, toStationCode, journeyDate, quota, trainQuery, true);
+      if (res && Array.isArray(res.trains)) {
         setTrainsList(res.trains);
+      } else {
+        setTrainsList([]);
       }
     } catch {
-      setTrainsList(getTrainsForRoute(fromStationCode, toStationCode));
+      setTrainsList([]);
     } finally {
       setIsLoadingTrains(false);
     }
@@ -126,12 +132,16 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
     const load = async () => {
       try {
         const res = await fetchLiveTrains(fromStationCode, toStationCode, journeyDate, quota, trainQuery);
-        if (!isCancelled && res && res.trains) {
-          setTrainsList(res.trains);
+        if (!isCancelled) {
+          if (res && Array.isArray(res.trains)) {
+            setTrainsList(res.trains);
+          } else {
+            setTrainsList([]);
+          }
         }
       } catch {
         if (!isCancelled) {
-          setTrainsList(getTrainsForRoute(fromStationCode, toStationCode));
+          setTrainsList([]);
         }
       } finally {
         if (!isCancelled) {
@@ -311,52 +321,40 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
           </div>
         </div>
 
-        {/* Station Selectors & Swap Button */}
+        {/* Station Selectors with Autocomplete across all 9,000+ Indian Railway Stations */}
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
           
           <div className="sm:col-span-5">
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Origin Station (From)
-            </label>
-            <select
+            <StationAutocomplete
+              id="watch-from-station"
+              label="Origin Station (From)"
               value={fromStationCode}
-              onChange={(e) => setFromStationCode(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-750 rounded-xl px-3.5 py-3 text-sm text-white font-medium focus:border-emerald-500 focus:outline-none"
-            >
-              {POPULAR_STATIONS.map((s) => (
-                <option key={s.code} value={s.code}>
-                  {s.city} ({s.code}) - {s.name}
-                </option>
-              ))}
-            </select>
+              disabledCode={toStationCode}
+              onChange={(s) => setFromStationCode(s.code)}
+              placeholder="Search station or city (e.g. NDLS, Gorakhpur)..."
+            />
           </div>
 
-          <div className="sm:col-span-2 flex justify-center pb-1">
+          <div className="sm:col-span-2 flex justify-center pb-0.5">
             <button
               type="button"
               onClick={handleSwapStations}
               title="Swap stations"
-              className="p-3 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700"
             >
               <ArrowRight className="w-4 h-4 rotate-90 sm:rotate-0" />
             </button>
           </div>
 
           <div className="sm:col-span-5">
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Destination Station (To)
-            </label>
-            <select
+            <StationAutocomplete
+              id="watch-to-station"
+              label="Destination Station (To)"
               value={toStationCode}
-              onChange={(e) => setToStationCode(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-750 rounded-xl px-3.5 py-3 text-sm text-white font-medium focus:border-emerald-500 focus:outline-none"
-            >
-              {POPULAR_STATIONS.map((s) => (
-                <option key={s.code} value={s.code}>
-                  {s.city} ({s.code}) - {s.name}
-                </option>
-              ))}
-            </select>
+              disabledCode={fromStationCode}
+              onChange={(s) => setToStationCode(s.code)}
+              placeholder="Search destination station or city..."
+            />
           </div>
 
         </div>
@@ -514,8 +512,34 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
           totalFilteredCount={filteredTrains.length}
         />
 
+        {/* Empty State when no trains operate on route */}
+        {trainsList.length === 0 && !isLoadingTrains && (
+          <div className="text-center py-12 bg-slate-900/60 border border-slate-800 rounded-3xl p-8 space-y-4 shadow-lg">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-400">
+              <Train className="w-7 h-7" />
+            </div>
+            <div className="space-y-1.5 max-w-md mx-auto">
+              <h3 className="text-base font-bold text-white">
+                No Direct Trains Found on Indian Railways
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                There are no scheduled direct trains operating between <span className="font-semibold text-slate-200">{fromStation.name} ({fromStation.code})</span> and <span className="font-semibold text-slate-200">{toStation.name} ({toStation.code})</span> on {journeyDate}.
+              </p>
+            </div>
+            <div className="text-xs text-slate-400 bg-slate-950/80 border border-slate-800/80 rounded-2xl p-4 max-w-lg mx-auto text-left space-y-1.5">
+              <p className="font-semibold text-emerald-400 flex items-center space-x-1.5">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>Travel Tip for Smaller Railway Stations:</span>
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Smaller stations often connect via nearby junction hubs. Try searching to or from a nearby major junction (such as <span className="text-slate-300 font-mono">NDLS</span> New Delhi, <span className="text-slate-300 font-mono">UMB</span> Ambala Cantt, or <span className="text-slate-300 font-mono">MB</span> Moradabad) to find express connecting services.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Empty State when filters yield zero trains */}
-        {filteredTrains.length === 0 && (
+        {trainsList.length > 0 && filteredTrains.length === 0 && (
           <div className="text-center py-10 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 space-y-3">
             <p className="text-sm font-semibold text-slate-300">
               No trains found matching the selected {slotTarget} time category.
@@ -549,18 +573,23 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
               {/* Train Header Info */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
                 <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-base font-extrabold text-white">
                       {train.number} - {train.name}
                     </span>
                     <span className="px-2 py-0.5 rounded-md bg-slate-800 text-emerald-400 font-mono text-[11px] font-bold">
                       {train.type}
                     </span>
+                    {train.isNearby && (
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-semibold">
+                        Nearby Station Route ({train.fromCode} → {train.toCode})
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center space-x-3 text-xs text-slate-400">
-                    <span className="font-semibold text-slate-200">{train.departureTime} ({fromStation.code})</span>
+                    <span className="font-semibold text-slate-200">{train.departureTime} ({train.fromCode || fromStation.code})</span>
                     <span>→</span>
-                    <span className="font-semibold text-slate-200">{train.arrivalTime} ({toStation.code})</span>
+                    <span className="font-semibold text-slate-200">{train.arrivalTime} ({train.toCode || toStation.code})</span>
                     <span>•</span>
                     <span>{train.duration}</span>
                     <span>•</span>

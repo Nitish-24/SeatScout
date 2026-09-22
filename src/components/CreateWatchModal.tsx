@@ -31,12 +31,13 @@ import {
   POPULAR_ROUTES, 
   TRAIN_DATABASE, 
   CLASS_LABELS, 
-  QUOTA_DETAILS,
-  getTrainsForRoute
+  QUOTA_DETAILS
 } from '../data/trainData';
 import { evaluateQuotaEligibility, calculateAgeOnDate } from '../utils/quotaCalculator';
 import { getStoredSavedPassengers } from '../utils/storage';
 import { calculateEstimatedChartingTime } from '../utils/chartingTime';
+import { StationAutocomplete } from './StationAutocomplete';
+import { fetchLiveTrains } from '../services/railwayApi';
 
 interface CreateWatchModalProps {
   isOpen: boolean;
@@ -75,10 +76,34 @@ export const CreateWatchModal: React.FC<CreateWatchModalProps> = ({
   const [notifySound, setNotifySound] = useState<boolean>(true);
   const [notifyPush, setNotifyPush] = useState<boolean>(true);
 
-  // Filter available trains for route (including metro clusters & corridors)
-  const matchingTrains = useMemo(() => {
-    return getTrainsForRoute(fromStation.code, toStation.code);
-  }, [fromStation.code, toStation.code]);
+  // Live trains for route from official Indian Railways PRS gateway
+  const [matchingTrains, setMatchingTrains] = useState<TrainSchedule[]>([]);
+  const [isLoadingTrains, setIsLoadingTrains] = useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoadingTrains(true);
+    fetchLiveTrains(fromStation.code, toStation.code, journeyDate, selectedQuota)
+      .then((res) => {
+        if (!cancelled) {
+          const list = Array.isArray(res?.trains) ? res.trains : [];
+          setMatchingTrains(list);
+          if (list.length > 0 && selectedTrainNumber !== 'ALL' && !list.some((t) => t.number === selectedTrainNumber)) {
+            setSelectedTrainNumber(list[0].number);
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMatchingTrains([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingTrains(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fromStation.code, toStation.code, journeyDate, selectedQuota]);
 
   // Selected train object
   const selectedTrain = useMemo(() => {
@@ -224,29 +249,17 @@ export const CreateWatchModal: React.FC<CreateWatchModalProps> = ({
             </div>
           </div>
 
-          {/* From & To Station Selection */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative items-center">
+          {/* From & To Station Selection with Autocomplete across all 9,000+ Indian Stations */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative items-end">
             {/* From Station */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                From Station (Origin)
-              </label>
-              <select
-                id="select-from-station"
-                value={fromStation.code}
-                onChange={(e) => {
-                  const s = POPULAR_STATIONS.find(st => st.code === e.target.value);
-                  if (s) setFromStation(s);
-                }}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-medium"
-              >
-                {POPULAR_STATIONS.map((station) => (
-                  <option key={station.code} value={station.code} disabled={station.code === toStation.code}>
-                    {station.name} ({station.code}) - {station.city}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <StationAutocomplete
+              id="select-from-station"
+              label="From Station (Origin)"
+              value={fromStation.code}
+              disabledCode={toStation.code}
+              onChange={(s) => setFromStation(s)}
+              placeholder="Search origin station or city..."
+            />
 
             {/* Swap Button (Desktop Center, Mobile Right) */}
             <div className="hidden sm:flex absolute left-1/2 -ml-4 top-7 z-10">
@@ -261,26 +274,14 @@ export const CreateWatchModal: React.FC<CreateWatchModalProps> = ({
             </div>
 
             {/* To Station */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                To Station (Destination)
-              </label>
-              <select
-                id="select-to-station"
-                value={toStation.code}
-                onChange={(e) => {
-                  const s = POPULAR_STATIONS.find(st => st.code === e.target.value);
-                  if (s) setToStation(s);
-                }}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-medium"
-              >
-                {POPULAR_STATIONS.map((station) => (
-                  <option key={station.code} value={station.code} disabled={station.code === fromStation.code}>
-                    {station.name} ({station.code}) - {station.city}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <StationAutocomplete
+              id="select-to-station"
+              label="To Station (Destination)"
+              value={toStation.code}
+              disabledCode={fromStation.code}
+              onChange={(s) => setToStation(s)}
+              placeholder="Search destination station or city..."
+            />
           </div>
 
           {/* Journey Date & Train Selection */}
@@ -336,11 +337,14 @@ export const CreateWatchModal: React.FC<CreateWatchModalProps> = ({
                 <option value="ALL">🔍 Any Train on this Corridor</option>
                 {matchingTrains.map((train) => (
                   <option key={train.number} value={train.number}>
-                    {train.number} - {train.name} ({train.departureTime} dep)
+                    {train.number} - {train.name} ({train.departureTime} dep) {train.isNearby ? `[${train.fromCode}→${train.toCode}]` : ''}
                   </option>
                 ))}
-                {matchingTrains.length === 0 && (
-                  <option value="12012">12012 - Kalka Shatabdi (18:23 dep)</option>
+                {matchingTrains.length === 0 && !isLoadingTrains && (
+                  <option value="NONE" disabled>No scheduled trains found on this route</option>
+                )}
+                {isLoadingTrains && (
+                  <option value="LOADING" disabled>Loading live Indian Railways timetable...</option>
                 )}
               </select>
               {selectedTrain?.chartingTimeNote && (

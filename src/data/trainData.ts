@@ -94,6 +94,11 @@ export const CITY_CLUSTERS: Record<string, string[]> = {
   'JP': ['JP']
 };
 
+let externalStationLookup: ((code: string) => Station | undefined) | null = null;
+export function registerStationLookup(fn: (code: string) => Station | undefined) {
+  externalStationLookup = fn;
+}
+
 export function getTrainsForRoute(fromCode: string, toCode: string, query?: string): TrainSchedule[] {
   // 1. If explicit query provided, search entire database first
   if (query && query.trim()) {
@@ -136,79 +141,8 @@ export function getTrainsForRoute(fromCode: string, toCode: string, query?: stri
     return deduplicated;
   }
 
-  // 4. If nothing in database, dynamically generate authentic trains covering all 4 time categories
-  const fromStation = POPULAR_STATIONS.find((s) => s.code === fromCode) || { city: fromCode, code: fromCode, name: fromCode, state: '' };
-  const toStation = POPULAR_STATIONS.find((s) => s.code === toCode) || { city: toCode, code: toCode, name: toCode, state: '' };
-
-  const parsedNumber = query && /^\d+$/.test(query.trim()) ? query.trim() : '12401';
-
-  return [
-    {
-      number: '12405',
-      name: `${fromStation.city} - ${toStation.city} Early Bird Superfast`,
-      fromCode,
-      toCode,
-      departureTime: '04:30',
-      arrivalTime: '08:45',
-      duration: '4h 15m',
-      classes: ['CC', 'EC', '3A', '2A'],
-      runsOn: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-      chartingTimeNote: '1st Chart prepared around 20:00 (previous night).',
-      type: 'Superfast'
-    },
-    {
-      number: parsedNumber,
-      name: `${fromStation.city} - ${toStation.city} Morning Express`,
-      fromCode,
-      toCode,
-      departureTime: '07:15',
-      arrivalTime: '11:45',
-      duration: '4h 30m',
-      classes: ['CC', 'EC', '3A', '2A'],
-      runsOn: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-      chartingTimeNote: '1st Chart prepared around 20:00 (prev night). Current booking active.',
-      type: 'Superfast'
-    },
-    {
-      number: '22415',
-      name: `${fromStation.city} - ${toStation.city} Vande Bharat Express`,
-      fromCode,
-      toCode,
-      departureTime: '14:20',
-      arrivalTime: '18:05',
-      duration: '3h 45m',
-      classes: ['CC', 'EC', 'EA'],
-      runsOn: ['Mon', 'Tue', 'Thu', 'Fri', 'Sat', 'Sun'],
-      chartingTimeNote: '1st Chart prepared at 10:20 AM.',
-      type: 'Vande Bharat'
-    },
-    {
-      number: '12903',
-      name: `${fromStation.city} - ${toStation.city} Evening Intercity SF`,
-      fromCode,
-      toCode,
-      departureTime: '18:30',
-      arrivalTime: '22:45',
-      duration: '4h 15m',
-      classes: ['CC', '2S', '3A'],
-      runsOn: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-      chartingTimeNote: '1st Chart prepared at 14:30 PM.',
-      type: 'Express'
-    },
-    {
-      number: '14019',
-      name: `${fromStation.city} - ${toStation.city} Night Mail Express`,
-      fromCode,
-      toCode,
-      departureTime: '22:45',
-      arrivalTime: '05:15',
-      duration: '6h 30m',
-      classes: ['1A', '2A', '3A', 'SL'],
-      runsOn: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-      chartingTimeNote: '1st Chart prepared at 18:45.',
-      type: 'Mail'
-    }
-  ];
+  // 4. Return empty list if no trains match route - NEVER fabricate fake trains!
+  return [];
 }
 
 export const TRAIN_DATABASE: TrainSchedule[] = [

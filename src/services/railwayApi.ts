@@ -1,6 +1,7 @@
 import { Station, TrainSchedule, TrainClass, QuotaType } from '../types';
 import { POPULAR_STATIONS, getTrainsForRoute } from '../data/trainData';
 import { DayAvailability, getMultiDayAvailability } from '../utils/ixigoAvailability';
+import { searchStations as searchStationsFromService } from './stationService';
 
 export interface TrainSearchResult {
   from: Station;
@@ -10,6 +11,7 @@ export interface TrainSearchResult {
   trains: TrainSchedule[];
   isRealIrctc?: boolean;
   source?: string;
+  message?: string;
 }
 
 export interface LiveTrainRunningStation {
@@ -40,24 +42,7 @@ export interface LiveTrainRunningStatus {
 }
 
 export async function searchStations(query: string): Promise<Station[]> {
-  try {
-    const res = await fetch(`/api/stations/search?q=${encodeURIComponent(query)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) return data;
-    }
-  } catch (e) {
-    console.warn('Backend station search fallback to local', e);
-  }
-
-  const q = query.trim().toLowerCase();
-  if (!q) return POPULAR_STATIONS.slice(0, 20);
-  return POPULAR_STATIONS.filter(
-    (s) =>
-      s.code.toLowerCase().includes(q) ||
-      s.name.toLowerCase().includes(q) ||
-      s.city.toLowerCase().includes(q)
-  );
+  return searchStationsFromService(query, 30);
 }
 
 export interface NetworkHealthStatus {
@@ -116,7 +101,7 @@ export async function fetchLiveTrains(
     );
     if (res.ok) {
       const data = await res.json();
-      if (data && data.trains && data.trains.length > 0) {
+      if (data && Array.isArray(data.trains)) {
         return data;
       }
     }
@@ -124,13 +109,13 @@ export async function fetchLiveTrains(
     console.warn('Backend trains search fallback to local', e);
   }
 
-  const from = POPULAR_STATIONS.find((s) => s.code === fromCode) || {
+  const from = searchStationsFromService(fromCode, 1)[0] || POPULAR_STATIONS.find((s) => s.code === fromCode) || {
     code: fromCode,
     name: `${fromCode} Station`,
     city: fromCode,
     state: ''
   };
-  const to = POPULAR_STATIONS.find((s) => s.code === toCode) || {
+  const to = searchStationsFromService(toCode, 1)[0] || POPULAR_STATIONS.find((s) => s.code === toCode) || {
     code: toCode,
     name: `${toCode} Station`,
     city: toCode,
@@ -140,8 +125,7 @@ export async function fetchLiveTrains(
   let trains = getTrainsForRoute(fromCode, toCode);
   if (query) {
     const qLower = query.toLowerCase();
-    const filtered = trains.filter(t => t.number.toLowerCase().includes(qLower) || t.name.toLowerCase().includes(qLower));
-    if (filtered.length > 0) trains = filtered;
+    trains = trains.filter(t => t.number.toLowerCase().includes(qLower) || t.name.toLowerCase().includes(qLower));
   }
 
   return {
@@ -149,7 +133,9 @@ export async function fetchLiveTrains(
     to,
     date,
     quota,
-    trains
+    trains,
+    isRealIrctc: false,
+    message: trains.length === 0 ? `No direct scheduled trains found between ${from.name} (${fromCode}) and ${to.name} (${toCode}).` : undefined
   };
 }
 

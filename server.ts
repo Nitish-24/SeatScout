@@ -12,6 +12,12 @@ import { radarRouter } from './server/radarRouter.js';
 import { phoneNotificationRouter } from './server/phoneNotificationRouter.js';
 import { emailNotificationRouter } from './server/emailNotificationRouter.js';
 import { RadarScheduler } from './server/radarScheduler.js';
+import {
+  searchStations as searchAllStations,
+  getStationByCode,
+  getAllStations,
+  getPopularStations
+} from './server/stationService.js';
 
 const app = express();
 const PORT = 3000;
@@ -72,65 +78,8 @@ app.get('/api/irctc/health', (req, res) => {
   });
 });
 
-// Comprehensive Indian Railways Stations database
-const IRCTC_STATIONS = [
-  { code: 'NDLS', name: 'New Delhi', city: 'New Delhi', state: 'Delhi' },
-  { code: 'DLI', name: 'Old Delhi', city: 'Delhi', state: 'Delhi' },
-  { code: 'NZM', name: 'Hazrat Nizamuddin', city: 'Delhi', state: 'Delhi' },
-  { code: 'ANVT', name: 'Anand Vihar Terminal', city: 'Delhi', state: 'Delhi' },
-  { code: 'CDG', name: 'Chandigarh Junction', city: 'Chandigarh', state: 'Chandigarh' },
-  { code: 'MMCT', name: 'Mumbai Central', city: 'Mumbai', state: 'Maharashtra' },
-  { code: 'CSMT', name: 'Chhatrapati Shivaji Maharaj Terminus', city: 'Mumbai', state: 'Maharashtra' },
-  { code: 'BDTS', name: 'Bandra Terminus', city: 'Mumbai', state: 'Maharashtra' },
-  { code: 'LTT', name: 'Lokmanya Tilak Terminus', city: 'Mumbai', state: 'Maharashtra' },
-  { code: 'PUNE', name: 'Pune Junction', city: 'Pune', state: 'Maharashtra' },
-  { code: 'SBC', name: 'KSR Bengaluru City', city: 'Bengaluru', state: 'Karnataka' },
-  { code: 'YPR', name: 'Yesvantpur Junction', city: 'Bengaluru', state: 'Karnataka' },
-  { code: 'MAS', name: 'MGR Chennai Central', city: 'Chennai', state: 'Tamil Nadu' },
-  { code: 'MS', name: 'Chennai Egmore', city: 'Chennai', state: 'Tamil Nadu' },
-  { code: 'HWH', name: 'Howrah Junction', city: 'Kolkata', state: 'West Bengal' },
-  { code: 'SDAH', name: 'Sealdah', city: 'Kolkata', state: 'West Bengal' },
-  { code: 'PNBE', name: 'Patna Junction', city: 'Patna', state: 'Bihar' },
-  { code: 'DNR', name: 'Danapur', city: 'Patna', state: 'Bihar' },
-  { code: 'BSB', name: 'Varanasi Junction', city: 'Varanasi', state: 'Uttar Pradesh' },
-  { code: 'DDU', name: 'Pt. Deen Dayal Upadhyaya (Mughalsarai)', city: 'Varanasi / DDU', state: 'Uttar Pradesh' },
-  { code: 'PRYJ', name: 'Prayagraj Junction (Allahabad)', city: 'Prayagraj', state: 'Uttar Pradesh' },
-  { code: 'CNB', name: 'Kanpur Central', city: 'Kanpur', state: 'Uttar Pradesh' },
-  { code: 'LKO', name: 'Lucknow Charbagh', city: 'Lucknow', state: 'Uttar Pradesh' },
-  { code: 'LJN', name: 'Lucknow Junction (NER)', city: 'Lucknow', state: 'Uttar Pradesh' },
-  { code: 'GKP', name: 'Gorakhpur Junction', city: 'Gorakhpur', state: 'Uttar Pradesh' },
-  { code: 'AGC', name: 'Agra Cantt', city: 'Agra', state: 'Uttar Pradesh' },
-  { code: 'GWL', name: 'Gwalior Junction', city: 'Gwalior', state: 'Madhya Pradesh' },
-  { code: 'JHS', name: 'Virangana Lakshmibai Jhansi', city: 'Jhansi', state: 'Uttar Pradesh' },
-  { code: 'BPL', name: 'Bhopal Junction', city: 'Bhopal', state: 'Madhya Pradesh' },
-  { code: 'RKMP', name: 'Rani Kamlapati (Habibganj)', city: 'Bhopal', state: 'Madhya Pradesh' },
-  { code: 'INDB', name: 'Indore Junction', city: 'Indore', state: 'Madhya Pradesh' },
-  { code: 'JP', name: 'Jaipur Junction', city: 'Jaipur', state: 'Rajasthan' },
-  { code: 'JU', name: 'Jodhpur Junction', city: 'Jodhpur', state: 'Rajasthan' },
-  { code: 'AII', name: 'Ajmer Junction', city: 'Ajmer', state: 'Rajasthan' },
-  { code: 'ADI', name: 'Ahmedabad Junction', city: 'Ahmedabad', state: 'Gujarat' },
-  { code: 'ST', name: 'Surat', city: 'Surat', state: 'Gujarat' },
-  { code: 'BRC', name: 'Vadodara Junction', city: 'Vadodara', state: 'Gujarat' },
-  { code: 'ASR', name: 'Amritsar Junction', city: 'Amritsar', state: 'Punjab' },
-  { code: 'JUC', name: 'Jalandhar City', city: 'Jalandhar', state: 'Punjab' },
-  { code: 'LDH', name: 'Ludhiana Junction', city: 'Ludhiana', state: 'Punjab' },
-  { code: 'UMB', name: 'Ambala Cantt', city: 'Ambala', state: 'Haryana' },
-  { code: 'KLK', name: 'Kalka', city: 'Kalka', state: 'Haryana' },
-  { code: 'DDN', name: 'Dehradun', city: 'Dehradun', state: 'Uttarakhand' },
-  { code: 'HW', name: 'Haridwar', city: 'Haridwar', state: 'Uttarakhand' },
-  { code: 'JAT', name: 'Jammu Tawi', city: 'Jammu', state: 'Jammu and Kashmir' },
-  { code: 'SVDK', name: 'Shri Mata Vaishno Devi Katra', city: 'Katra', state: 'Jammu and Kashmir' },
-  { code: 'HYB', name: 'Hyderabad Deccan', city: 'Hyderabad', state: 'Telangana' },
-  { code: 'SC', name: 'Secunderabad Junction', city: 'Hyderabad / Secunderabad', state: 'Telangana' },
-  { code: 'GHY', name: 'Guwahati', city: 'Guwahati', state: 'Assam' },
-  { code: 'BBS', name: 'Bhubaneswar', city: 'Bhubaneswar', state: 'Odisha' },
-  { code: 'PURI', name: 'Puri', city: 'Puri', state: 'Odisha' },
-  { code: 'R', name: 'Raipur Junction', city: 'Raipur', state: 'Chhattisgarh' },
-  { code: 'NGP', name: 'Nagpur Junction', city: 'Nagpur', state: 'Maharashtra' },
-  { code: 'MAO', name: 'Madgaon Junction (Goa)', city: 'Goa', state: 'Goa' },
-  { code: 'TVC', name: 'Thiruvananthapuram Central', city: 'Trivandrum', state: 'Kerala' },
-  { code: 'ERS', name: 'Ernakulam South (Cochin)', city: 'Kochi', state: 'Kerala' }
-];
+// Full Indian Railways Stations database (loaded from stationService covering all 9,000+ stations)
+const IRCTC_STATIONS = getAllStations();
 
 // Helper: Calculate deterministic and realistic train timetable & availability
 function generateLiveAvailability(trainNumber: string, travelClass: string, quota: string, dateStr: string) {
@@ -286,20 +235,27 @@ const SERVER_CITY_CLUSTERS: Record<string, string[]> = {
   'LJN': ['LKO', 'LJN']
 };
 
-// API: Search Stations Autocomplete
+// API: Search Stations Autocomplete (Covers all 9,000+ Indian Railway Stations)
 app.get('/api/stations/search', (req, res) => {
-  const query = (req.query.q as string || '').trim().toLowerCase();
-  if (!query) {
-    return res.json(IRCTC_STATIONS.slice(0, 20));
-  }
-  const matched = IRCTC_STATIONS.filter(
-    (s) =>
-      s.code.toLowerCase().includes(query) ||
-      s.name.toLowerCase().includes(query) ||
-      s.city.toLowerCase().includes(query) ||
-      s.state.toLowerCase().includes(query)
-  );
+  const query = (req.query.q as string || '').trim();
+  const limit = Math.min(parseInt(req.query.limit as string, 10) || 35, 100);
+  const matched = searchAllStations(query, limit);
   res.json(matched);
+});
+
+// API: Get station details by Station Code (e.g. /api/stations/NDLS, /api/stations/GKP)
+app.get('/api/stations/:code', (req, res) => {
+  const code = (req.params.code || '').toUpperCase().trim();
+  const stn = getStationByCode(code);
+  if (!stn) {
+    return res.status(404).json({ error: `Station code ${code} not found` });
+  }
+  res.json(stn);
+});
+
+// API: Get all popular railway stations
+app.get('/api/stations/meta/popular', (_req, res) => {
+  res.json(getPopularStations());
 });
 
 // Comprehensive Real Indian Railways Timetable Database
@@ -389,8 +345,8 @@ app.get('/api/trains/search', async (req, res) => {
   const query = (req.query.q as string || req.query.trainNumber as string || '').trim().toLowerCase();
   const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
 
-  const fromStation = IRCTC_STATIONS.find((s) => s.code === from) || { code: from, name: `${from} Station`, city: from, state: '' };
-  const toStation = IRCTC_STATIONS.find((s) => s.code === to) || { code: to, name: `${to} Station`, city: to, state: '' };
+  const fromStation = getStationByCode(from) || { code: from, name: `${from} Station`, city: from, state: '' };
+  const toStation = getStationByCode(to) || { code: to, name: `${to} Station`, city: to, state: '' };
 
   try {
     // 1. Fetch REAL live train timetable & real PRS availability from official Indian Railways PRS gateway
@@ -409,7 +365,9 @@ app.get('/api/trains/search', async (req, res) => {
         number: t.trainNumber,
         name: t.trainName,
         fromCode: t.fromStnCode || from,
+        fromStnName: t.fromStnName || '',
         toCode: t.toStnCode || to,
+        toStnName: t.toStnName || '',
         departureTime: t.departureTime,
         arrivalTime: t.arrivalTime,
         duration: t.duration,
@@ -419,6 +377,7 @@ app.get('/api/trains/search', async (req, res) => {
         type: t.type,
         liveAvailability: t.avaiblitycache,
         liveAvailabilityTq: t.avaiblitycacheTq,
+        isNearby: Boolean(t.isNearby),
         isRealIrctc: true
       }));
 
@@ -482,37 +441,6 @@ app.get('/api/trains/search', async (req, res) => {
     }
   }
 
-  if (matchedTrains.length === 0) {
-    matchedTrains = [
-      {
-        number: '12405',
-        name: `${fromStation.city} - ${toStation.city} Superfast`,
-        fromCode: from,
-        toCode: to,
-        departureTime: '06:30',
-        arrivalTime: '10:45',
-        duration: '4h 15m',
-        classes: ['CC', 'EC', '3A', '2A'],
-        runsOn: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        chartingTimeNote: 'Chart prepared at 20:00 (prev night).',
-        type: 'Superfast'
-      },
-      {
-        number: query && /^\d+$/.test(query) ? query : '12401',
-        name: `${fromStation.city} - ${toStation.city} Express`,
-        fromCode: from,
-        toCode: to,
-        departureTime: '15:15',
-        arrivalTime: '19:45',
-        duration: '4h 30m',
-        classes: ['CC', 'EC', '3A', '2A'],
-        runsOn: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        chartingTimeNote: 'Chart prepared at 11:15 AM.',
-        type: 'Superfast'
-      }
-    ];
-  }
-
   res.json({
     from: fromStation,
     to: toStation,
@@ -520,7 +448,10 @@ app.get('/api/trains/search', async (req, res) => {
     quota,
     totalTrains: matchedTrains.length,
     trains: matchedTrains,
-    isRealIrctc: false
+    isRealIrctc: false,
+    message: matchedTrains.length === 0
+      ? `No scheduled direct trains found between ${fromStation.city || fromStation.name || from} (${from}) and ${toStation.city || toStation.name || to} (${to}) on this date.`
+      : undefined
   });
 });
 

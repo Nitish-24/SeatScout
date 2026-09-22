@@ -15,7 +15,10 @@ export interface TrainSchedule {
   number: string;
   name: string;
   fromCode: string;
+  fromStnName?: string;
   toCode: string;
+  toStnName?: string;
+  isNearby?: boolean;
   departureTime: string; // e.g. "18:23"
   arrivalTime: string;   // e.g. "21:55"
   duration: string;      // e.g. "3h 32m"
