@@ -15,6 +15,8 @@
   - **Rich HTML Email Berth Dossiers** (SMTP via Nodemailer)
 - 🤖 **Gemini AI Charting & Strategy Advisor**: Predicts exact charting windows, confirmation chances for waitlisted tickets, and recommends Tatkal vs Current Booking strategies.
 - 🛡️ **Resilient PRS Gateway with Circuit Breaker**: Connects to live Indian Railways PRS feeds with 3.5s timeout protection and automatic failover.
+- 🚉 **Comprehensive National Station Index (9,000+ Stations)**: High-performance searchable dataset covering all IRCTC station codes, junction aliases, and railway zones.
+- 🕒 **Live IRCTC Timetables & Corridor Routing**: Direct PRS train timetable synchronization with real stoppage schedules and zero synthetic mock fallbacks.
 - 🚄 **Live Train Running Status**: Real-time GPS delay tracking, current station, platform numbers, and scheduled vs actual timings.
 - 🎯 **One-Click IRCTC Deep Linking**: Direct button to launch the official IRCTC eTicketing portal pre-filled with your train number, journey date, and route.
 - 📱 **Progressive Web App (PWA)**: Installable on Android, iOS, and desktop browsers with offline caching.
