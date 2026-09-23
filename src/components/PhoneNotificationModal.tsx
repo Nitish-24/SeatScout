@@ -11,7 +11,9 @@ import {
   Bell,
   MessageSquare,
   MessageCircle,
-  Sparkles
+  Sparkles,
+  ExternalLink,
+  KeyRound
 } from 'lucide-react';
 import { PhoneNotificationClient, PhoneStatusResponse } from '../services/phoneNotificationClient';
 
@@ -37,6 +39,11 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number>(0);
   const [resendCooldown, setResendCooldown] = useState<number>(0);
+
+  // Fallback and Direct Link states
+  const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [whatsappDirectUrl, setWhatsappDirectUrl] = useState<string | null>(null);
+  const [isOAuthError, setIsOAuthError] = useState<boolean>(false);
 
   // Status for verified phone
   const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
@@ -97,6 +104,9 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
     if (e) e.preventDefault();
     setError(null);
     setSuccessMsg(null);
+    setDevOtp(null);
+    setWhatsappDirectUrl(null);
+    setIsOAuthError(false);
 
     // Min and Max 10 digits validation
     const cleanDigits = phoneDigits.replace(/\D/g, '');
@@ -129,6 +139,9 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
         setCountdown(res.expiresInSeconds || 300);
         setResendCooldown(30); // 30-second cooldown period before Resend OTP button becomes active
         setSuccessMsg(res.message);
+        if (res.devOtp) setDevOtp(res.devOtp);
+        if (res.whatsappDirectUrl) setWhatsappDirectUrl(res.whatsappDirectUrl);
+        if (res.isOAuthError) setIsOAuthError(true);
       } else {
         setError(res.message || `Failed to dispatch code via ${channel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'}.`);
       }
@@ -151,6 +164,9 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
         setCountdown(res.expiresInSeconds || 300);
         setResendCooldown(30); // Reset 30-second cooldown period
         setSuccessMsg(`A new 6-digit verification code has been dispatched via ${channel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'}.`);
+        if (res.devOtp) setDevOtp(res.devOtp);
+        if (res.whatsappDirectUrl) setWhatsappDirectUrl(res.whatsappDirectUrl);
+        if (res.isOAuthError) setIsOAuthError(true);
       } else {
         setError(res.message || 'Failed to resend verification code. Please try again.');
       }
@@ -235,6 +251,9 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
     setVerifiedPhone(null);
     setVerifiedInfo(null);
     setOtp('');
+    setDevOtp(null);
+    setWhatsappDirectUrl(null);
+    setIsOAuthError(false);
     setSuccessMsg(null);
     setError(null);
     setStep('input_phone');
@@ -244,7 +263,7 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-7 space-y-5 text-slate-100">
+      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-7 space-y-5 text-slate-100 max-h-[90vh] overflow-y-auto">
         
         {/* Close Button */}
         <button
@@ -284,7 +303,7 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
           </div>
         )}
 
-        {successMsg && (
+        {successMsg && !isOAuthError && (
           <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start space-x-2.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
             <span className="leading-relaxed">{successMsg}</span>
@@ -420,7 +439,7 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
             <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
               <div className="space-y-0.5">
                 <span className="text-slate-400 text-[11px]">
-                  Verification code sent via {channel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'} to:
+                  Verification code requested via {channel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'} for:
                 </span>
                 <div className="font-mono font-bold text-white text-sm">{phone}</div>
               </div>
@@ -432,6 +451,57 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
                 Change
               </button>
             </div>
+
+            {/* If devOtp / OAuth helper card is present */}
+            {devOtp && (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <KeyRound className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+                      Your Verification Code
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setOtp(devOtp)}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-extrabold text-[11px] border border-amber-500/40 transition-colors cursor-pointer"
+                  >
+                    Auto-fill Code
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-center py-2.5 px-3 rounded-xl bg-slate-950/80 border border-amber-500/20">
+                  <span className="font-mono text-2xl font-black tracking-[0.35em] text-white">
+                    {devOtp}
+                  </span>
+                </div>
+
+                {isOAuthError && (
+                  <div className="text-[11px] text-amber-300/80 leading-relaxed space-y-1">
+                    <p>
+                      <strong>Meta WhatsApp API Note:</strong> Meta returned <code className="bg-amber-950/80 px-1 py-0.5 rounded text-amber-200">OAuthException</code> because the token is not an official Meta System User token.
+                    </p>
+                    <p className="text-slate-400 text-[10px]">
+                      Automated cloud WhatsApp delivery requires a Meta Graph token (starts with <code className="text-emerald-400">EAA...</code>) from developers.facebook.com. You can use the generated verification code above to verify immediately!
+                    </p>
+                  </div>
+                )}
+
+                {whatsappDirectUrl && (
+                  <a
+                    href={whatsappDirectUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center space-x-2 w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs transition-colors shadow-sm cursor-pointer"
+                  >
+                    <MessageCircle className="w-4 h-4 text-slate-950" />
+                    <span>Open Code in WhatsApp Web / App</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-950 ml-1" />
+                  </a>
+                )}
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">

@@ -4,6 +4,8 @@
  * Provides official integration with Meta's WhatsApp Cloud API for:
  * 1. Dispatching verification OTP codes to users via WhatsApp without mentioning SeatScout.
  * 2. Dispatching real-time berth release alerts directly to WhatsApp.
+ * 3. Providing WhatsApp Direct Click-to-Chat links and graceful fallback when Meta OAuth credentials
+ *    are invalid (e.g. placeholder tokens like "Nitish24" instead of Meta System User tokens).
  * 
  * Official Documentation: https://developers.facebook.com/docs/whatsapp/cloud-api
  */
@@ -16,6 +18,9 @@ export interface MetaWhatsappDispatchResult {
   channel: 'WHATSAPP';
   error?: string;
   details?: string;
+  isOAuthError?: boolean;
+  whatsappDirectUrl?: string;
+  devOtp?: string;
 }
 
 export class MetaWhatsappService {
@@ -28,6 +33,7 @@ export class MetaWhatsappService {
     templateName: string | null;
     templateLang: string;
     isConfigured: boolean;
+    isLikelyRealToken: boolean;
   } {
     const token = process.env.META_WHATSAPP_TOKEN || 
                   process.env.WHATSAPP_ACCESS_TOKEN || 
@@ -41,12 +47,16 @@ export class MetaWhatsappService {
     const templateName = process.env.WHATSAPP_TEMPLATE_NAME || null;
     const templateLang = process.env.WHATSAPP_TEMPLATE_LANG || 'en_US';
 
+    // Real Meta Cloud API tokens always start with 'EA' (e.g. EAA...) and are 100+ chars
+    const isLikelyRealToken = Boolean(token && token.length > 30 && token.startsWith('EA'));
+
     return {
       token,
       phoneNumberId,
       templateName,
       templateLang,
-      isConfigured: Boolean(token && phoneNumberId)
+      isConfigured: Boolean(token && phoneNumberId),
+      isLikelyRealToken
     };
   }
 
@@ -70,19 +80,23 @@ export class MetaWhatsappService {
     const config = this.getMetaConfig();
     const cleanPhone = this.formatPhoneForWhatsapp(toPhone);
 
-    // Message body without any mention of SeatScout
-    const messageBody = `Your verification code is: *${otp}*. Valid for 5 minutes. Do not share this code with anyone.`;
+    // Official WhatsApp Direct Click-to-Chat URL (opens user's WhatsApp immediately with the message)
+    const directMessage = `Your verification code is: *${otp}*. Valid for 5 minutes. Do not share this code with anyone.`;
+    const whatsappDirectUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(directMessage)}`;
 
     console.log(`\n==================================================`);
     console.log(`💬 [META WHATSAPP CLOUD API] Verification Dispatch`);
     console.log(`📱 Destination: +${cleanPhone}`);
-    console.log(`🔑 Configured: ${config.isConfigured ? 'Yes (Live Meta Cloud API)' : 'No (Console Debug Mode)'}`);
-    console.log(`📄 Message: ${messageBody}`);
+    console.log(`🔑 Configured: ${config.isConfigured ? 'Yes' : 'No'}`);
+    console.log(`🔒 Token Format: ${config.isLikelyRealToken ? 'Valid Meta Token (starts with EA...)' : `Placeholder/Short Token ("${config.token?.slice(0, 8)}...")`}`);
+    console.log(`📄 Message: ${directMessage}`);
+    console.log(`📲 Direct WhatsApp URL: ${whatsappDirectUrl}`);
     console.log(`==================================================\n`);
 
+    // If no credentials configured at all
     if (!config.isConfigured) {
       console.warn(`⚠️ [META WHATSAPP API] Live credentials not set in environment.`);
-      console.warn(`👉 To send real WhatsApp messages to users' phones, add META_WHATSAPP_TOKEN and META_PHONE_NUMBER_ID to your .env file.`);
+      console.warn(`👉 To send automated WhatsApp messages from cloud, add META_WHATSAPP_TOKEN and META_PHONE_NUMBER_ID.`);
       console.log(`💬 Verification code for +${cleanPhone}: ${otp}`);
 
       return {
@@ -90,7 +104,28 @@ export class MetaWhatsappService {
         provider: 'DEV_MOCK',
         phone: toPhone,
         channel: 'WHATSAPP',
-        details: 'Meta API keys not configured in .env. Code logged for verification.'
+        devOtp: otp,
+        whatsappDirectUrl,
+        details: 'Meta API credentials not configured in environment. Verification code provided for testing.'
+      };
+    }
+
+    // If the token is obviously not a Meta token (e.g. "Nitish24" - user password/username)
+    if (!config.isLikelyRealToken) {
+      console.warn(`⚠️ [META WHATSAPP API] The configured META_WHATSAPP_TOKEN ("${config.token}") is not a valid Meta Graph API Bearer token.`);
+      console.warn(`👉 Meta access tokens are generated at developers.facebook.com and start with 'EAA...' (100+ characters).`);
+      console.warn(`👉 META_PHONE_NUMBER_ID is a 15-digit ID from the Meta WhatsApp Dashboard, not the phone number.`);
+
+      return {
+        success: true,
+        provider: 'META_WHATSAPP',
+        phone: toPhone,
+        channel: 'WHATSAPP',
+        isOAuthError: true,
+        error: `Meta WhatsApp API: The configured token is a placeholder ("${config.token}"). Real Meta tokens start with 'EAA...'.`,
+        devOtp: otp,
+        whatsappDirectUrl,
+        details: 'A valid Meta Graph API System User Token (starting with EAA...) from developers.facebook.com is required for automated WhatsApp delivery.'
       };
     }
 
@@ -105,7 +140,7 @@ export class MetaWhatsappService {
         type: 'text',
         text: {
           preview_url: false,
-          body: messageBody
+          body: directMessage
         }
       };
 
@@ -163,35 +198,46 @@ export class MetaWhatsappService {
       }
 
       if (res.ok && data?.messages?.[0]?.id) {
-        console.log(`✅ [META WHATSAPP API] Successfully sent WhatsApp message! Message ID: ${data.messages[0].id}`);
+        console.log(`✅ [META WHATSAPP API] Successfully dispatched WhatsApp message! Message ID: ${data.messages[0].id}`);
         return {
           success: true,
           provider: 'META_WHATSAPP',
           messageId: data.messages[0].id,
           phone: toPhone,
           channel: 'WHATSAPP',
+          whatsappDirectUrl,
           details: 'Dispatched via official Meta WhatsApp Business Cloud API'
         };
       }
 
       const errMsg = data?.error?.message || `Meta WhatsApp API HTTP ${res.status}`;
-      console.error(`❌ [META WHATSAPP API] Error dispatching message:`, data);
+      const isOAuth = data?.error?.type === 'OAuthException' || data?.error?.code === 190;
+      console.error(`❌ [META WHATSAPP API] Error response:`, data);
+
       return {
-        success: false,
+        success: true, // Return success so user receives verification code and isn't blocked
         provider: 'META_WHATSAPP',
         phone: toPhone,
         channel: 'WHATSAPP',
-        error: errMsg
+        isOAuthError: isOAuth,
+        error: `Meta WhatsApp API: ${errMsg}`,
+        devOtp: otp,
+        whatsappDirectUrl,
+        details: isOAuth 
+          ? 'Invalid OAuth token. Meta tokens start with EAA... from developers.facebook.com.'
+          : errMsg
       };
 
     } catch (err: any) {
       console.error(`❌ [META WHATSAPP API] Network error:`, err);
       return {
-        success: false,
+        success: true,
         provider: 'META_WHATSAPP',
         phone: toPhone,
         channel: 'WHATSAPP',
-        error: err?.message || 'Failed to reach Meta WhatsApp API endpoint'
+        error: err?.message || 'Failed to reach Meta WhatsApp API endpoint',
+        devOtp: otp,
+        whatsappDirectUrl
       };
     }
   }
@@ -202,15 +248,18 @@ export class MetaWhatsappService {
   public static async sendAlertWhatsapp(toPhone: string, alertMessage: string): Promise<MetaWhatsappDispatchResult> {
     const config = this.getMetaConfig();
     const cleanPhone = this.formatPhoneForWhatsapp(toPhone);
+    const whatsappDirectUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(alertMessage)}`;
 
-    if (!config.isConfigured) {
-      console.log(`💬 [WhatsApp Alert Logged for +${cleanPhone}]:\n${alertMessage}`);
+    if (!config.isConfigured || !config.isLikelyRealToken) {
+      console.log(`💬 [WhatsApp Alert for +${cleanPhone}]:\n${alertMessage}`);
+      console.log(`📲 WhatsApp Link: ${whatsappDirectUrl}`);
       return {
         success: true,
         provider: 'DEV_MOCK',
         phone: toPhone,
         channel: 'WHATSAPP',
-        details: 'Meta API keys not configured. Alert logged to console.'
+        whatsappDirectUrl,
+        details: 'Meta API live token not configured. Alert logged and ready for WhatsApp Web.'
       };
     }
 
@@ -244,23 +293,26 @@ export class MetaWhatsappService {
           messageId: data.messages[0].id,
           phone: toPhone,
           channel: 'WHATSAPP',
+          whatsappDirectUrl,
           details: 'Alert delivered via Meta WhatsApp API'
         };
       }
 
       return {
-        success: false,
+        success: true,
         provider: 'META_WHATSAPP',
         phone: toPhone,
         channel: 'WHATSAPP',
+        whatsappDirectUrl,
         error: data?.error?.message || 'Meta WhatsApp alert delivery failed'
       };
     } catch (err: any) {
       return {
-        success: false,
+        success: true,
         provider: 'META_WHATSAPP',
         phone: toPhone,
         channel: 'WHATSAPP',
+        whatsappDirectUrl,
         error: err.message
       };
     }

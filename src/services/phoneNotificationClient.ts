@@ -62,6 +62,9 @@ export class PhoneNotificationClient {
     token?: string;
     message: string;
     expiresInSeconds?: number;
+    devOtp?: string;
+    whatsappDirectUrl?: string;
+    isOAuthError?: boolean;
   }> {
     const res = await fetch('/api/notifications/phone/verifyPhone', {
       method: 'POST',

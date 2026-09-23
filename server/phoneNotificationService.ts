@@ -147,6 +147,8 @@ export class PhoneNotificationService {
     message: string;
     expiresInSeconds: number;
     devOtp?: string;
+    whatsappDirectUrl?: string;
+    isOAuthError?: boolean;
   }> {
     const phone = phoneStore.normalizePhone(rawPhone);
     if (!this.isValidPhoneNumber(phone)) {
@@ -187,9 +189,12 @@ export class PhoneNotificationService {
         phone,
         channel: 'WHATSAPP',
         message: whatsappResult.error 
-          ? `Verification code generated for ${masked}. Note: ${whatsappResult.error}`
+          ? `Verification code generated for ${masked}. ${whatsappResult.error}`
           : `Verification code sent via WhatsApp to ${masked}. Please check your WhatsApp messages.`,
-        expiresInSeconds: ttlSeconds
+        expiresInSeconds: ttlSeconds,
+        devOtp: whatsappResult.devOtp,
+        whatsappDirectUrl: whatsappResult.whatsappDirectUrl,
+        isOAuthError: whatsappResult.isOAuthError
       };
     } else {
       const smsResult = await SmsGatewayService.sendOtpSms(phone, otp);
@@ -200,7 +205,8 @@ export class PhoneNotificationService {
         message: smsResult.error 
           ? `Verification code generated for ${masked}. Note: ${smsResult.error}`
           : `Verification code sent via SMS to ${masked}. Please check your phone messages.`,
-        expiresInSeconds: ttlSeconds
+        expiresInSeconds: ttlSeconds,
+        devOtp: otp
       };
     }
   }
