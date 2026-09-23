@@ -14,10 +14,10 @@ export const NetworkHealthWidget: React.FC<NetworkHealthWidgetProps> = ({
 }) => {
   const [health, setHealth] = useState<NetworkHealthStatus>({
     status: 'connected',
-    gateway: 'IRCTC CRIS PRS Gateway',
+    gateway: 'Indian Railways Network',
     latencyMs: 32,
     timestamp: new Date().toISOString(),
-    serverLocation: 'New Delhi (CRIS Data Center)'
+    serverLocation: 'New Delhi Server Center'
   });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [simulatedState, setSimulatedState] = useState<'auto' | 'connected' | 'retrying' | 'disconnected'>('auto');
@@ -34,10 +34,10 @@ export const NetworkHealthWidget: React.FC<NetworkHealthWidgetProps> = ({
     } catch {
       const offlineStatus: NetworkHealthStatus = {
         status: 'disconnected',
-        gateway: 'IRCTC CRIS PRS Gateway',
+        gateway: 'Indian Railways Network',
         latencyMs: 0,
         timestamp: new Date().toISOString(),
-        message: 'Could not connect to IRCTC Gateway'
+        message: 'Could not connect to Railway Server'
       };
       setHealth(offlineStatus);
       updateGatewayHealth(offlineStatus);
@@ -131,7 +131,7 @@ export const NetworkHealthWidget: React.FC<NetworkHealthWidgetProps> = ({
                 Network Health
               </span>
               <span className="text-[10px] text-slate-400 font-medium">
-                IRCTC PRS Server
+                Indian Railways Server
               </span>
             </div>
 
@@ -155,19 +155,19 @@ export const NetworkHealthWidget: React.FC<NetworkHealthWidgetProps> = ({
 
               {health.status === 'connected' && (
                 <span className="text-[11px] text-slate-400 font-mono">
-                  {health.latencyMs}ms latency
+                  {health.latencyMs}ms response
                 </span>
               )}
 
               {health.status === 'retrying' && (
                 <span className="text-[11px] text-amber-300 font-medium animate-pulse">
-                  Re-establishing handshake...
+                  Re-establishing connection...
                 </span>
               )}
 
               {health.status === 'disconnected' && (
                 <span className="text-[11px] text-rose-300 font-medium">
-                  Gateway offline
+                  Connection offline
                 </span>
               )}
             </div>
@@ -230,10 +230,10 @@ export const NetworkHealthWidget: React.FC<NetworkHealthWidgetProps> = ({
             onClick={handlePingNow}
             disabled={isLoading}
             className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
-            title="Ping IRCTC server for latency and connection check"
+            title="Check Indian Railways server response time"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${isLoading ? 'animate-spin text-emerald-400' : ''}`} />
-            <span>{isLoading ? 'Pinging...' : 'Ping IRCTC'}</span>
+            <span>{isLoading ? 'Checking...' : 'Check Server'}</span>
           </button>
         </div>
 
@@ -243,12 +243,12 @@ export const NetworkHealthWidget: React.FC<NetworkHealthWidgetProps> = ({
       <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-[11px] text-slate-400 gap-2">
         <div className="flex items-center space-x-2">
           <Server className="w-3 h-3 text-slate-500" />
-          <span>Gateway: <span className="text-slate-300 font-medium">{health.gateway}</span></span>
+          <span>Server: <span className="text-slate-300 font-medium">{health.gateway}</span></span>
           <span className="text-slate-600">•</span>
-          <span className="text-slate-400">{health.serverLocation || 'CRIS Data Center'}</span>
+          <span className="text-slate-400">{health.serverLocation || 'New Delhi Server Center'}</span>
         </div>
         <div className="text-slate-500">
-          Last health check: <span className="text-slate-400 font-mono">{lastCheckedSecondsAgo}s ago</span>
+          Last checked: <span className="text-slate-400 font-mono">{lastCheckedSecondsAgo}s ago</span>
         </div>
       </div>
     </div>

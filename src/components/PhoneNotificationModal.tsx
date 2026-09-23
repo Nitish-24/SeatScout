@@ -260,13 +260,13 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
           </div>
           <div>
             <h2 className="text-xl font-black text-white tracking-tight flex items-center space-x-2">
-              <span>SMS & Mobile Alert API</span>
+              <span>SMS & Mobile Alerts</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                24/7 PRS
+                24/7 Alerts
               </span>
             </h2>
             <p className="text-xs text-slate-400">
-              Validate via OTP to receive real-time SMS & web notifications when seats appear.
+              Verify your mobile number via OTP to receive instant SMS & alerts the moment seats open up.
             </p>
           </div>
         </div>
@@ -497,7 +497,7 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
             <div className="space-y-2.5">
               <div className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
                 <span>Dispatch Sample Alert</span>
-                <span className="text-[11px] text-slate-500 lowercase">tests backend API</span>
+                <span className="text-[11px] text-slate-400 font-medium">Verify delivery</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

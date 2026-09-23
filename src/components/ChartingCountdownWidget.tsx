@@ -113,7 +113,7 @@ export const ChartingCountdownWidget: React.FC<ChartingCountdownWidgetProps> = (
               </span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              IRCTC CRIS PRS reservation chart finalization heuristic
+              Official Indian Railways chart preparation timetable
             </p>
           </div>
         </div>
@@ -134,7 +134,7 @@ export const ChartingCountdownWidget: React.FC<ChartingCountdownWidgetProps> = (
         <div className="mt-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 space-y-1.5 animate-in fade-in duration-150">
           <div className="font-semibold text-sky-700 dark:text-cyan-300 flex items-center space-x-1.5">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Official IRCTC / CRIS Charting Rules:</span>
+            <span>Official Indian Railways Chart Preparation Rules:</span>
           </div>
           <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600 dark:text-slate-400">
             <li>

@@ -46,7 +46,7 @@ export const IxigoAvailabilityStrip: React.FC<IxigoAvailabilityStripProps> = ({
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
   const [refreshSuccess, setRefreshSuccess] = useState<boolean>(false);
   const [classNotice, setClassNotice] = useState<string | null>(null);
-  const [dataSource, setDataSource] = useState<string>('Official IRCTC CRIS PRS (Real-Time Gateway)');
+  const [dataSource, setDataSource] = useState<string>('Official Indian Railways Booking System');
   const [days, setDays] = useState<DayAvailability[]>(() => {
     // Strictly do NOT initialize with dummy generator
     if (initialAvailability && Array.isArray(initialAvailability) && initialAvailability.length > 0) {
@@ -112,13 +112,13 @@ export const IxigoAvailabilityStrip: React.FC<IxigoAvailabilityStripProps> = ({
           // Reject empty or malformed data packets; reflect Data Unavailable state
           setDays([]);
           setIsUnavailable(true);
-          setUnavailableReason(res.error || 'Live availability data is currently unavailable from IRCTC PRS gateway.');
+          setUnavailableReason(res.error || 'Live availability data is currently unavailable from Indian Railways.');
         }
       } catch (err: any) {
         if (!isCancelled) {
           setDays([]);
           setIsUnavailable(true);
-          setUnavailableReason(err?.message || 'Connection error querying live IRCTC PRS gateway.');
+          setUnavailableReason(err?.message || 'Unable to connect to Indian Railways booking servers.');
         }
       } finally {
         if (!isCancelled) {
@@ -302,7 +302,7 @@ export const IxigoAvailabilityStrip: React.FC<IxigoAvailabilityStripProps> = ({
             {refreshSuccess && (
               <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/90 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/40 flex items-center space-x-1 animate-pulse">
                 <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                <span>Live PRS Verified</span>
+                <span>Verified Availability</span>
               </span>
             )}
           </div>
@@ -318,10 +318,10 @@ export const IxigoAvailabilityStrip: React.FC<IxigoAvailabilityStripProps> = ({
               onClick={handleRefresh}
               disabled={isRefreshing}
               className="text-[11px] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-semibold flex items-center space-x-1.5 cursor-pointer bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-all disabled:opacity-50 active:scale-95 shadow-xs"
-              title="Force fresh query from IRCTC live gateway"
+              title="Check latest official seat availability"
             >
               <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin text-blue-600 dark:text-emerald-300' : 'text-slate-500'}`} />
-              <span className="font-semibold">{isRefreshing ? 'Querying PRS Gateway...' : 'Refresh Live Data'}</span>
+              <span className="font-semibold">{isRefreshing ? 'Checking Seats...' : 'Refresh Live Data'}</span>
             </button>
           </div>
         </div>
@@ -339,7 +339,7 @@ export const IxigoAvailabilityStrip: React.FC<IxigoAvailabilityStripProps> = ({
             </div>
             <div className="text-center text-[11px] text-slate-500 flex items-center justify-center space-x-1.5">
               <RefreshCw className="w-3 h-3 animate-spin text-emerald-600 dark:text-emerald-400" />
-              <span>Querying live IRCTC PRS availability across upcoming dates...</span>
+              <span>Fetching official seat availability across upcoming dates...</span>
             </div>
           </div>
         )}

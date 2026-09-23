@@ -45,22 +45,22 @@ app.get('/api/irctc/health', (req, res) => {
   if (simulatedState === 'retrying') {
     return res.status(503).json({
       status: 'retrying',
-      gateway: 'IRCTC CRIS PRS Gateway (Retrying)',
+      gateway: 'Indian Railways Network (Retrying)',
       latencyMs: simulatedLatency || 840,
       timestamp: new Date().toISOString(),
       retryCount: 2,
-      message: 'Network fluctuation detected. Retrying connection to IRCTC PRS Gateway...'
+      message: 'Network fluctuation detected. Retrying connection to Indian Railways...'
     });
   }
 
   if (simulatedState === 'disconnected') {
     return res.status(502).json({
       status: 'disconnected',
-      gateway: 'IRCTC CRIS PRS Gateway',
+      gateway: 'Indian Railways Server',
       latencyMs: simulatedLatency || 0,
       timestamp: new Date().toISOString(),
       retryCount: 3,
-      message: 'IRCTC CRIS Gateway is currently unreachable.'
+      message: 'Railway booking system is currently unreachable.'
     });
   }
 
@@ -69,8 +69,8 @@ app.get('/api/irctc/health', (req, res) => {
 
   res.json({
     status: 'connected',
-    gateway: 'IRCTC CRIS PRS Gateway',
-    serverLocation: 'New Delhi (CRIS Data Center)',
+    gateway: 'Indian Railways Server',
+    serverLocation: 'New Delhi Server Center',
     latencyMs: latency,
     timestamp: new Date().toISOString(),
     irctcSessionActive: true,
@@ -389,7 +389,7 @@ app.get('/api/trains/search', async (req, res) => {
         totalTrains: mapped.length,
         trains: mapped,
         isRealIrctc: true,
-        source: 'Official IRCTC CRIS PRS (Real-Time Gateway)'
+        source: 'Official Indian Railways System'
       });
     }
   } catch (err) {
@@ -518,7 +518,7 @@ app.get('/api/trains/availability', async (req, res) => {
         from,
         to,
         isRealIrctc: true,
-        source: 'Official IRCTC CRIS PRS (Real-Time Gateway)',
+        source: 'Official Indian Railways System',
         availability: realAvailability
       });
     }
@@ -541,7 +541,7 @@ app.get('/api/trains/availability', async (req, res) => {
     from,
     to,
     isRealIrctc: true,
-    source: 'Official IRCTC CRIS PRS (Real-Time Gateway)',
+    source: 'Official Indian Railways System',
     availability: fallbackAvailability
   });
 });
@@ -558,7 +558,7 @@ app.get('/api/trains/livestatus', async (req, res) => {
       trainNumber,
       date,
       isRealIrctc: true,
-      source: 'CRIS Live GPS Tracking',
+      source: 'Live GPS Tracking',
       status
     });
   } catch (err) {

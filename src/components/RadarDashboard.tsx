@@ -532,7 +532,7 @@ const RadarCard: React.FC<RadarCardProps> = ({
 
         {/* Status Message Line */}
         <div className="text-xs text-slate-400 font-mono bg-slate-950/40 rounded-xl px-3 py-2 border border-slate-800/80 flex items-center justify-between">
-          <span className="truncate">{radar.lastStatusText || 'Monitoring IRCTC PRS gateway...'}</span>
+          <span className="truncate">{radar.lastStatusText || 'Monitoring live train seats...'}</span>
           <button
             type="button"
             onClick={onForceScan}

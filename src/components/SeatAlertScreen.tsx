@@ -71,7 +71,7 @@ export const SeatAlertScreen: React.FC<SeatAlertScreenProps> = ({
             🎉 Seat Available!
           </h1>
           <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-            Confirmed availability detected on Indian Railways PRS
+            Confirmed availability detected on Indian Railways
           </p>
         </div>
 

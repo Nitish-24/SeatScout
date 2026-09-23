@@ -494,7 +494,7 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
 
             <div className="hidden md:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold shadow-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Official IRCTC PRS Live Data</span>
+              <span>Official Indian Railways Live Timetable</span>
             </div>
           </div>
         </div>

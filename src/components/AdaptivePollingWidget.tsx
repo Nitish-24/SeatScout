@@ -195,7 +195,7 @@ export const AdaptivePollingWidget: React.FC<AdaptivePollingWidgetProps> = ({
                 {adaptive.networkLabel}
               </div>
               <div className="text-[11px] text-slate-400 flex items-center justify-between">
-                <span>Gateway Latency:</span>
+                <span>Server Response:</span>
                 <span className="font-mono text-slate-200">{adaptive.lastResponseLatencyMs || 32}ms</span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
@@ -210,8 +210,8 @@ export const AdaptivePollingWidget: React.FC<AdaptivePollingWidgetProps> = ({
               </div>
               <p className="text-[10px] text-slate-400 leading-tight pt-0.5">
                 {isBusy
-                  ? '🛡️ API request frequency lowered dynamically to avoid 429 rate-limiting and protect CRIS proxy.'
-                  : 'Gateway is responsive with minimal latency; optimal polling active.'}
+                  ? '🛡️ Refresh rate adjusted automatically for smooth, reliable monitoring.'
+                  : 'Connection is responsive and actively monitoring.'}
               </p>
             </div>
           </div>

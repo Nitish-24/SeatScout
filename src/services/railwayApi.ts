@@ -66,17 +66,17 @@ export async function fetchNetworkHealth(
     const data = await res.json();
     return {
       status: data.status || (res.ok ? 'connected' : 'disconnected'),
-      gateway: data.gateway || 'IRCTC CRIS PRS Gateway',
+      gateway: data.gateway || 'Indian Railways Server',
       latencyMs: typeof data.latencyMs === 'number' ? data.latencyMs : 28,
       timestamp: data.timestamp || new Date().toISOString(),
-      serverLocation: data.serverLocation || 'New Delhi (CRIS Data Center)',
+      serverLocation: data.serverLocation || 'New Delhi Server Center',
       retryCount: data.retryCount || 0,
       message: data.message
     };
   } catch (err) {
     return {
       status: 'disconnected',
-      gateway: 'IRCTC CRIS PRS Gateway',
+      gateway: 'Indian Railways Server',
       latencyMs: 0,
       timestamp: new Date().toISOString(),
       retryCount: 1,
@@ -303,7 +303,7 @@ export async function fetchLiveAvailabilityDetailed(
           requestedClass: travelClass,
           isClassSwitched: Boolean(data?.isClassSwitched),
           classWarning: data?.classWarning,
-          source: 'Official IRCTC CRIS PRS (Live Gateway)',
+          source: 'Official Indian Railways System',
           isUnavailable: false
         };
         availabilityClientCache.set(cacheKey, { timestamp: Date.now(), data: result });
@@ -329,7 +329,7 @@ export async function fetchLiveAvailabilityDetailed(
         requestedClass: data.requestedClass || travelClass,
         isClassSwitched: Boolean(data.isClassSwitched),
         classWarning: data.classWarning,
-        source: data.source || 'Official IRCTC CRIS PRS Gateway',
+        source: data.source || 'Official Indian Railways System',
         isUnavailable: false
       };
 
@@ -344,7 +344,7 @@ export async function fetchLiveAvailabilityDetailed(
         effectiveClass: travelClass,
         requestedClass: travelClass,
         isClassSwitched: false,
-        source: 'Official IRCTC CRIS PRS (Live Gateway)',
+        source: 'Official Indian Railways System',
         isUnavailable: false
       };
     } finally {
