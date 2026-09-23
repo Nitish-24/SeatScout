@@ -1,22 +1,24 @@
 import crypto from 'crypto';
+import { SmsGatewayService } from './smsGatewayService';
+import { MetaWhatsappService } from './metaWhatsappService';
 
 export interface PendingOtp {
   otp: string;
   expiresAt: number;
   attempts: number;
   createdAt: number;
+  channel: 'WHATSAPP' | 'SMS';
 }
-
-import { SmsGatewayService } from './smsGatewayService';
 
 export interface VerifiedPhoneUser {
   phone: string;
   verifiedAt: string;
   token: string;
   subscribedRadars: string[];
+  preferredChannel?: 'WHATSAPP' | 'SMS' | 'BOTH';
   alertHistory: Array<{
     id: string;
-    type: 'SMS' | 'WEB_NOTIFICATION';
+    type: 'SMS' | 'WHATSAPP' | 'WEB_NOTIFICATION';
     message: string;
     timestamp: string;
     status: 'delivered' | 'failed';
@@ -56,13 +58,14 @@ class PhoneNotificationStore {
     return cleaned;
   }
 
-  public setOtp(phone: string, otp: string, ttlSeconds = 300): void {
+  public setOtp(phone: string, otp: string, ttlSeconds = 300, channel: 'WHATSAPP' | 'SMS' = 'WHATSAPP'): void {
     const norm = this.normalizePhone(phone);
     this.pendingOtps.set(norm, {
       otp,
       expiresAt: Date.now() + ttlSeconds * 1000,
       attempts: 0,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      channel
     });
   }
 
@@ -76,7 +79,7 @@ class PhoneNotificationStore {
     this.pendingOtps.delete(norm);
   }
 
-  public setVerified(phone: string): VerifiedPhoneUser {
+  public setVerified(phone: string, channel: 'WHATSAPP' | 'SMS' = 'WHATSAPP'): VerifiedPhoneUser {
     const norm = this.normalizePhone(phone);
     const existing = this.verifiedUsers.get(norm);
     const token = crypto.randomBytes(24).toString('hex');
@@ -85,6 +88,7 @@ class PhoneNotificationStore {
       verifiedAt: new Date().toISOString(),
       token,
       subscribedRadars: existing?.subscribedRadars || [],
+      preferredChannel: channel,
       alertHistory: existing?.alertHistory || []
     };
     this.verifiedUsers.set(norm, user);
@@ -100,7 +104,7 @@ class PhoneNotificationStore {
     return Array.from(this.verifiedUsers.keys());
   }
 
-  public addAlertToHistory(phone: string, type: 'SMS' | 'WEB_NOTIFICATION', message: string, status: 'delivered' | 'failed' = 'delivered'): void {
+  public addAlertToHistory(phone: string, type: 'SMS' | 'WHATSAPP' | 'WEB_NOTIFICATION', message: string, status: 'delivered' | 'failed' = 'delivered'): void {
     const norm = this.normalizePhone(phone);
     const user = this.verifiedUsers.get(norm);
     if (user) {
@@ -131,11 +135,15 @@ export class PhoneNotificationService {
   }
 
   /**
-   * Generate and send 6-digit OTP to mobile phone
+   * Generate and send 6-digit OTP to mobile phone via WhatsApp (Meta API) or SMS
    */
-  public static async sendOtp(rawPhone: string): Promise<{
+  public static async sendOtp(
+    rawPhone: string,
+    channel: 'WHATSAPP' | 'SMS' = 'WHATSAPP'
+  ): Promise<{
     success: boolean;
     phone: string;
+    channel: 'WHATSAPP' | 'SMS';
     message: string;
     expiresInSeconds: number;
     devOtp?: string;
@@ -145,6 +153,7 @@ export class PhoneNotificationService {
       return {
         success: false,
         phone,
+        channel,
         message: 'Please enter a valid 10-digit Indian mobile number (e.g. 9876543210 or +919876543210)',
         expiresInSeconds: 0
       };
@@ -157,7 +166,8 @@ export class PhoneNotificationService {
       return {
         success: false,
         phone,
-        message: `Please wait ${waitRemaining} seconds before requesting a new OTP.`,
+        channel,
+        message: `Please wait ${waitRemaining} seconds before requesting a new code.`,
         expiresInSeconds: Math.round((existing.expiresAt - Date.now()) / 1000)
       };
     }
@@ -165,22 +175,34 @@ export class PhoneNotificationService {
     // Generate cryptographic 6-digit numeric OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const ttlSeconds = 300; // 5 minutes
-    phoneStore.setOtp(phone, otp, ttlSeconds);
-
-    // Dispatch real SMS via carrier gateway
-    const smsResult = await SmsGatewayService.sendOtpSms(phone, otp);
+    phoneStore.setOtp(phone, otp, ttlSeconds, channel);
 
     // Masked phone for user privacy
     const masked = phone.slice(0, 4) + '******' + phone.slice(-3);
 
-    return {
-      success: true,
-      phone,
-      message: smsResult.error 
-        ? `OTP generated for ${masked}. Note: ${smsResult.error}`
-        : `Verification code sent via SMS to ${masked}. Please check your phone messages.`,
-      expiresInSeconds: ttlSeconds
-    };
+    if (channel === 'WHATSAPP') {
+      const whatsappResult = await MetaWhatsappService.sendOtpWhatsapp(phone, otp);
+      return {
+        success: true,
+        phone,
+        channel: 'WHATSAPP',
+        message: whatsappResult.error 
+          ? `Verification code generated for ${masked}. Note: ${whatsappResult.error}`
+          : `Verification code sent via WhatsApp to ${masked}. Please check your WhatsApp messages.`,
+        expiresInSeconds: ttlSeconds
+      };
+    } else {
+      const smsResult = await SmsGatewayService.sendOtpSms(phone, otp);
+      return {
+        success: true,
+        phone,
+        channel: 'SMS',
+        message: smsResult.error 
+          ? `Verification code generated for ${masked}. Note: ${smsResult.error}`
+          : `Verification code sent via SMS to ${masked}. Please check your phone messages.`,
+        expiresInSeconds: ttlSeconds
+      };
+    }
   }
 
   /**
@@ -190,6 +212,7 @@ export class PhoneNotificationService {
     success: boolean;
     verified: boolean;
     phone: string;
+    channel?: 'WHATSAPP' | 'SMS';
     token?: string;
     message: string;
   }> {
@@ -201,7 +224,7 @@ export class PhoneNotificationService {
         success: false,
         verified: false,
         phone,
-        message: 'No active OTP found or OTP has expired. Please request a new code.'
+        message: 'No active verification code found or code has expired. Please request a new code.'
       };
     }
 
@@ -211,7 +234,7 @@ export class PhoneNotificationService {
         success: false,
         verified: false,
         phone,
-        message: 'OTP has expired. Please request a new code.'
+        message: 'Verification code has expired. Please request a new code.'
       };
     }
 
@@ -222,7 +245,7 @@ export class PhoneNotificationService {
         success: false,
         verified: false,
         phone,
-        message: 'Too many incorrect attempts. Please request a new OTP.'
+        message: 'Too many incorrect attempts. Please request a new verification code.'
       };
     }
 
@@ -231,27 +254,29 @@ export class PhoneNotificationService {
         success: false,
         verified: false,
         phone,
-        message: 'Invalid OTP code. Please verify the 6-digit code and try again.'
+        message: 'Invalid verification code. Please check the 6-digit code and try again.'
       };
     }
 
     // OTP matched!
+    const userChannel = pending.channel || 'WHATSAPP';
     phoneStore.deleteOtp(phone);
-    const user = phoneStore.setVerified(phone);
+    const user = phoneStore.setVerified(phone, userChannel);
 
-    console.log(`\n✅ [SMS GATEWAY] Phone ${phone} verified successfully for real-time berth alerts!\n`);
+    console.log(`\n✅ [VERIFICATION] Phone ${phone} verified successfully via ${userChannel}!\n`);
 
     return {
       success: true,
       verified: true,
       phone,
+      channel: userChannel,
       token: user.token,
-      message: `Phone number ${phone} successfully verified! You will receive instant SMS alerts when seats are released.`
+      message: `Phone number ${phone} successfully verified! You will receive instant seat alerts via ${userChannel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'}.`
     };
   }
 
   /**
-   * Send confirmed berth alert notification via SMS and Web Notification
+   * Send confirmed berth alert notification via WhatsApp, SMS, and Web Notification
    */
   public static async sendBerthAlert(
     rawPhone: string,
@@ -270,23 +295,23 @@ export class PhoneNotificationService {
     success: boolean;
     delivered: boolean;
     phone: string;
-    channel: 'SMS' | 'WEB_NOTIFICATION' | 'BOTH';
+    channel: 'WHATSAPP' | 'SMS' | 'BOTH';
     messageText: string;
     timestamp: string;
     error?: string;
   }> {
     const phone = phoneStore.normalizePhone(rawPhone);
-    const isVerified = !!phoneStore.getVerifiedUser(phone);
+    const user = phoneStore.getVerifiedUser(phone);
 
-    if (!isVerified) {
+    if (!user) {
       return {
         success: false,
         delivered: false,
         phone,
-        channel: 'SMS',
+        channel: 'WHATSAPP',
         messageText: '',
         timestamp: new Date().toISOString(),
-        error: 'Phone number is not verified. Please complete OTP verification first.'
+        error: 'Phone number is not verified. Please complete verification first.'
       };
     }
 
@@ -294,21 +319,34 @@ export class PhoneNotificationService {
     const quotaDesc = alert.quota === 'SS' ? 'Lower Berth / Senior Citizen' : 'General Quota';
 
     const messageText = alert.customMessage || 
-      `🚨 [SeatScout ALERT] 🎉 ${alert.availableBerths} confirmed berth(s) released on ${alert.trainNumber} ${alert.trainName}${routeText ? ` (${routeText})` : ''} for ${alert.journeyDate} in ${alert.travelClass} (${quotaDesc})! Book immediately on IRCTC: https://www.irctc.co.in/nget/train-search`;
+      `🚨 *Seat Alert*: 🎉 ${alert.availableBerths} confirmed berth(s) released on ${alert.trainNumber} ${alert.trainName}${routeText ? ` (${routeText})` : ''} for ${alert.journeyDate} in ${alert.travelClass} (${quotaDesc})! Book immediately on IRCTC: https://www.irctc.co.in/nget/train-search`;
 
-    // Dispatch real SMS via carrier gateway
-    const smsResult = await SmsGatewayService.sendAlertSms(phone, messageText);
+    const channel = user.preferredChannel || 'WHATSAPP';
+    let deliverySuccess = false;
+    let deliveryError: string | undefined;
 
-    phoneStore.addAlertToHistory(phone, 'SMS', messageText, smsResult.success ? 'delivered' : 'failed');
+    if (channel === 'WHATSAPP' || channel === 'BOTH') {
+      const waResult = await MetaWhatsappService.sendAlertWhatsapp(phone, messageText);
+      deliverySuccess = waResult.success;
+      deliveryError = waResult.error;
+      phoneStore.addAlertToHistory(phone, 'WHATSAPP', messageText, waResult.success ? 'delivered' : 'failed');
+    }
+
+    if (channel === 'SMS' || channel === 'BOTH') {
+      const smsResult = await SmsGatewayService.sendAlertSms(phone, messageText);
+      deliverySuccess = deliverySuccess || smsResult.success;
+      if (!deliveryError) deliveryError = smsResult.error;
+      phoneStore.addAlertToHistory(phone, 'SMS', messageText, smsResult.success ? 'delivered' : 'failed');
+    }
 
     return {
-      success: smsResult.success,
-      delivered: smsResult.success,
+      success: deliverySuccess,
+      delivered: deliverySuccess,
       phone,
-      channel: 'SMS',
+      channel,
       messageText,
       timestamp: new Date().toISOString(),
-      error: smsResult.error
+      error: deliveryError
     };
   }
 

@@ -48,14 +48,15 @@ export class PhoneNotificationClient {
 
   /**
    * Unified verifyPhone API endpoint interaction:
-   * - Call `verifyPhone(phone)` to trigger an OTP request.
-   * - Call `verifyPhone(phone, otp)` to validate the OTP before enabling SMS alerts.
+   * - Call `verifyPhone(phone, undefined, channel)` to trigger an OTP request via WhatsApp (Meta API) or SMS.
+   * - Call `verifyPhone(phone, otp)` to validate the OTP before enabling alerts.
    */
-  public static async verifyPhone(phone: string, otp?: string): Promise<{
+  public static async verifyPhone(phone: string, otp?: string, channel: 'WHATSAPP' | 'SMS' = 'WHATSAPP'): Promise<{
     success: boolean;
     verified?: boolean;
     action?: 'OTP_REQUESTED' | 'OTP_VALIDATED';
-    smsAlertsEnabled?: boolean;
+    alertsEnabled?: boolean;
+    channel?: 'WHATSAPP' | 'SMS';
     securityVerified?: boolean;
     phone: string;
     token?: string;
@@ -65,7 +66,7 @@ export class PhoneNotificationClient {
     const res = await fetch('/api/notifications/phone/verifyPhone', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, ...(otp ? { otp } : {}) })
+      body: JSON.stringify({ phone, ...(otp ? { otp } : { channel }) })
     });
     const data = await res.json();
     if (data.success && data.verified && data.phone) {
@@ -75,18 +76,19 @@ export class PhoneNotificationClient {
   }
 
   /**
-   * Request OTP to mobile number
+   * Request OTP to mobile number via WhatsApp or SMS
    */
-  public static async sendOtp(phone: string): Promise<{
+  public static async sendOtp(phone: string, channel: 'WHATSAPP' | 'SMS' = 'WHATSAPP'): Promise<{
     success: boolean;
     phone: string;
+    channel?: 'WHATSAPP' | 'SMS';
     message: string;
     expiresInSeconds: number;
   }> {
     const res = await fetch('/api/notifications/phone/send-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone })
+      body: JSON.stringify({ phone, channel })
     });
     return await res.json();
   }
@@ -134,12 +136,13 @@ export class PhoneNotificationClient {
     travelClass?: string;
     quota?: string;
     availableBerths?: number;
-    channel?: 'SMS' | 'WEB_NOTIFICATION' | 'BOTH';
+    channel?: 'WHATSAPP' | 'SMS' | 'WEB_NOTIFICATION' | 'BOTH';
     customMessage?: string;
   }): Promise<{
     success: boolean;
-    smsDelivered: boolean;
-    webPushDelivered: boolean;
+    delivered?: boolean;
+    smsDelivered?: boolean;
+    webPushDelivered?: boolean;
     channel: string;
     phone: string;
     messageText: string;
@@ -152,5 +155,9 @@ export class PhoneNotificationClient {
       body: JSON.stringify(payload)
     });
     return await res.json();
+  }
+
+  public static async sendTestAlert(payload: Parameters<typeof PhoneNotificationClient.sendAlert>[0]) {
+    return this.sendAlert(payload);
   }
 }

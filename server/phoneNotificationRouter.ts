@@ -15,12 +15,12 @@ export const phoneNotificationRouter = express.Router();
  */
 async function handleVerifyPhone(req: express.Request, res: express.Response) {
   try {
-    const { phone, otp } = req.body;
+    const { phone, otp, channel = 'WHATSAPP' } = req.body;
     if (!phone) {
       return res.status(400).json({ success: false, message: 'Phone number is required' });
     }
 
-    // Step 2: If OTP is provided, validate the OTP and activate SMS alerts
+    // Step 2: If OTP is provided, validate the OTP and activate alerts
     if (otp) {
       const result = await PhoneNotificationService.verifyOtp(phone, otp);
       if (!result.success) {
@@ -29,20 +29,21 @@ async function handleVerifyPhone(req: express.Request, res: express.Response) {
       return res.json({
         ...result,
         action: 'OTP_VALIDATED',
-        smsAlertsEnabled: true,
+        alertsEnabled: true,
+        channel: result.channel || channel,
         securityVerified: true
       });
     }
 
-    // Step 1: If no OTP is provided, trigger an OTP request
-    const result = await PhoneNotificationService.sendOtp(phone);
+    // Step 1: If no OTP is provided, trigger an OTP request via specified channel (WhatsApp/SMS)
+    const result = await PhoneNotificationService.sendOtp(phone, channel);
     if (!result.success) {
       return res.status(400).json(result);
     }
     return res.json({
       ...result,
       action: 'OTP_REQUESTED',
-      smsAlertsEnabled: false
+      alertsEnabled: false
     });
   } catch (err: any) {
     console.error('[PhoneRouter] Error in verifyPhone endpoint:', err);
@@ -55,16 +56,16 @@ phoneNotificationRouter.post('/verify-phone', handleVerifyPhone);
 
 /**
  * POST /api/notifications/phone/send-otp
- * Body: { phone: string }
+ * Body: { phone: string, channel?: 'WHATSAPP' | 'SMS' }
  */
 phoneNotificationRouter.post('/send-otp', async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, channel = 'WHATSAPP' } = req.body;
     if (!phone) {
       return res.status(400).json({ success: false, message: 'Phone number is required' });
     }
 
-    const result = await PhoneNotificationService.sendOtp(phone);
+    const result = await PhoneNotificationService.sendOtp(phone, channel);
     if (!result.success) {
       return res.status(400).json(result);
     }
@@ -149,7 +150,7 @@ phoneNotificationRouter.post('/send-alert', async (req, res) => {
       quota = 'GN',
       availableBerths = 4,
       customMessage,
-      channel = 'SMS' // 'SMS' | 'WEB_NOTIFICATION' | 'BOTH'
+      channel = 'WHATSAPP' // 'WHATSAPP' | 'SMS' | 'WEB_NOTIFICATION' | 'BOTH'
     } = req.body;
 
     if (!phone) {

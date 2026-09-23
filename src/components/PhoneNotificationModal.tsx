@@ -10,7 +10,8 @@ import {
   AlertCircle,
   Bell,
   MessageSquare,
-  ArrowRight
+  MessageCircle,
+  Sparkles
 } from 'lucide-react';
 import { PhoneNotificationClient, PhoneStatusResponse } from '../services/phoneNotificationClient';
 
@@ -29,6 +30,7 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
   const [phoneDigits, setPhoneDigits] = useState<string>('');
   const [otp, setOtp] = useState<string>('');
   const [step, setStep] = useState<'input_phone' | 'input_otp' | 'verified'>('input_phone');
+  const [channel, setChannel] = useState<'WHATSAPP' | 'SMS'>('WHATSAPP');
   
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,18 +122,18 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
     setLoading(true);
 
     try {
-      // Trigger OTP request through the verifyPhone API endpoint interaction
-      const res = await PhoneNotificationClient.verifyPhone(fullPhone);
+      // Trigger OTP request through Meta WhatsApp API or SMS
+      const res = await PhoneNotificationClient.verifyPhone(fullPhone, undefined, channel);
       if (res.success) {
         setStep('input_otp');
         setCountdown(res.expiresInSeconds || 300);
         setResendCooldown(30); // 30-second cooldown period before Resend OTP button becomes active
         setSuccessMsg(res.message);
       } else {
-        setError(res.message || 'Failed to dispatch OTP. Please verify your mobile number.');
+        setError(res.message || `Failed to dispatch code via ${channel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'}.`);
       }
     } catch (err: any) {
-      setError(err.message || 'Network error while contacting SMS gateway.');
+      setError(err.message || 'Network error while contacting notification gateway.');
     } finally {
       setLoading(false);
     }
@@ -144,16 +146,16 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
     setLoading(true);
 
     try {
-      const res = await PhoneNotificationClient.verifyPhone(phone);
+      const res = await PhoneNotificationClient.verifyPhone(phone, undefined, channel);
       if (res.success) {
         setCountdown(res.expiresInSeconds || 300);
         setResendCooldown(30); // Reset 30-second cooldown period
-        setSuccessMsg('A new 6-digit OTP code has been dispatched to your mobile number via SMS.');
+        setSuccessMsg(`A new 6-digit verification code has been dispatched via ${channel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'}.`);
       } else {
         setError(res.message || 'Failed to resend verification code. Please try again.');
       }
     } catch (err: any) {
-      setError(err.message || 'Network error while contacting SMS gateway.');
+      setError(err.message || 'Network error while contacting notification gateway.');
     } finally {
       setLoading(false);
     }
@@ -162,7 +164,7 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!otp.trim()) {
-      setError('Please enter the 6-digit OTP code.');
+      setError('Please enter the 6-digit verification code.');
       return;
     }
 
@@ -171,16 +173,16 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
     setLoading(true);
 
     try {
-      // Validate OTP via verifyPhone API endpoint before enabling SMS alerts
+      // Validate OTP via verifyPhone API endpoint before enabling alerts
       const res = await PhoneNotificationClient.verifyPhone(phone, otp.trim());
       if (res.success && res.verified) {
         setVerifiedPhone(res.phone);
         setStep('verified');
-        setSuccessMsg(res.message || 'OTP validated successfully! 24/7 SMS alerts are now enabled.');
+        setSuccessMsg(res.message || 'Verification code validated successfully! 24/7 seat release alerts are now enabled.');
         checkStatus(res.phone);
         if (onPhoneVerified) onPhoneVerified(res.phone);
       } else {
-        setError(res.message || 'Invalid or expired OTP. Please try again.');
+        setError(res.message || 'Invalid or expired verification code. Please try again.');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to verify code.');
@@ -189,35 +191,37 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
     }
   };
 
-  const handleSendTestAlert = async (channel: 'SMS' | 'WEB_NOTIFICATION' | 'BOTH' = 'BOTH') => {
+  const handleSendTestAlert = async (alertChannel: 'WHATSAPP' | 'SMS' | 'BOTH' = 'WHATSAPP') => {
     if (!verifiedPhone) return;
     setTestSending(true);
     setError(null);
+    setSuccessMsg(null);
 
     try {
-      const res = await PhoneNotificationClient.sendAlert({
+      const res = await PhoneNotificationClient.sendTestAlert({
         phone: verifiedPhone,
         trainNumber: '12012',
         trainName: 'Kalka Shatabdi Express',
         fromStation: 'CDG',
         toStation: 'NDLS',
-        journeyDate: 'Tomorrow',
+        journeyDate: new Date().toISOString().split('T')[0],
         travelClass: 'CC',
         quota: 'GN',
         availableBerths: 4,
-        channel
+        channel: alertChannel
       });
 
       if (res.success) {
         setLastSentAlert({
           messageText: res.messageText,
-          timestamp: res.timestamp,
-          channel: res.channel
+          timestamp: new Date().toLocaleTimeString(),
+          channel: alertChannel
         });
-        setSuccessMsg('🚨 Sample Confirmed Berth Alert successfully dispatched via ' + channel + '!');
+        const chanName = alertChannel === 'WHATSAPP' ? 'WhatsApp' : alertChannel === 'SMS' ? 'SMS' : 'WhatsApp + Web Push';
+        setSuccessMsg(`Sample seat alert delivered via ${chanName} to ${verifiedPhone}!`);
         checkStatus(verifiedPhone);
       } else {
-        setError(res.error || 'Failed to send alert.');
+        setError(res.error || 'Failed to dispatch sample alert');
       }
     } catch (err: any) {
       setError(err.message || 'Error sending test alert.');
@@ -230,43 +234,44 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
     PhoneNotificationClient.clearVerifiedPhone();
     setVerifiedPhone(null);
     setVerifiedInfo(null);
-    setPhone('');
-    setPhoneDigits('');
     setOtp('');
-    setStep('input_phone');
-    setError(null);
     setSuccessMsg(null);
-    setResendCooldown(0);
+    setError(null);
+    setStep('input_phone');
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden text-slate-100 p-6 sm:p-7 space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-7 space-y-5 text-slate-100">
         
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+          className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
-        <div className="flex items-center space-x-3">
-          <div className="p-3 rounded-2xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 text-emerald-400">
-            <Smartphone className="w-6 h-6" />
+        <div className="flex items-center space-x-3.5 pr-8">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+            {channel === 'WHATSAPP' ? (
+              <MessageCircle className="w-6 h-6 text-emerald-400" />
+            ) : (
+              <Smartphone className="w-6 h-6" />
+            )}
           </div>
           <div>
             <h2 className="text-xl font-black text-white tracking-tight flex items-center space-x-2">
-              <span>SMS & Mobile Alerts</span>
+              <span>WhatsApp & SMS Alerts</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                24/7 Alerts
+                Meta Cloud API
               </span>
             </h2>
             <p className="text-xs text-slate-400">
-              Verify your mobile number via OTP to receive instant SMS & alerts the moment seats open up.
+              Verify your mobile number to receive instant seat alerts directly on WhatsApp or SMS.
             </p>
           </div>
         </div>
@@ -286,9 +291,44 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
           </div>
         )}
 
-        {/* STEP 1: Phone Input */}
+        {/* STEP 1: Phone Input & Channel Selection */}
         {step === 'input_phone' && (
           <form onSubmit={handleSendOtp} className="space-y-4">
+            
+            {/* Delivery Channel Selector */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Verification Channel
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setChannel('WHATSAPP')}
+                  className={`flex items-center justify-center space-x-2 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    channel === 'WHATSAPP'
+                      ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-500/20'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                  }`}
+                >
+                  <MessageCircle className="w-4 h-4 text-emerald-400" />
+                  <span>WhatsApp (Meta API)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setChannel('SMS')}
+                  className={`flex items-center justify-center space-x-2 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    channel === 'SMS'
+                      ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-500/20'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                  }`}
+                >
+                  <MessageSquare className="w-4 h-4 text-teal-400" />
+                  <span>Standard SMS</span>
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
@@ -312,7 +352,7 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
                   </span>
                 </div>
 
-                {/* 10-Digit Mobile Number Input with min/max validation */}
+                {/* 10-Digit Mobile Number Input */}
                 <div className="relative flex-1">
                   <input
                     type="tel"
@@ -348,7 +388,9 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
               </div>
 
               <p className="text-[11px] text-slate-400 pt-1">
-                We'll send a 6-digit one-time password (OTP) via SMS to verify this mobile number.
+                {channel === 'WHATSAPP' 
+                  ? 'A 6-digit verification code will be dispatched to your WhatsApp via Meta Cloud API.'
+                  : 'A 6-digit verification code will be sent to your mobile phone via SMS.'}
               </p>
             </div>
 
@@ -360,12 +402,12 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
               {loading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-                  <span>Dispatching OTP...</span>
+                  <span>Dispatching Code...</span>
                 </>
               ) : (
                 <>
                   <Send className="w-4 h-4 text-slate-950" />
-                  <span>Send Verification Code</span>
+                  <span>Send Verification Code via {channel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'}</span>
                 </>
               )}
             </button>
@@ -377,7 +419,9 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
           <form onSubmit={handleVerifyOtp} className="space-y-4">
             <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
               <div className="space-y-0.5">
-                <span className="text-slate-400 text-[11px]">Verification Code sent to:</span>
+                <span className="text-slate-400 text-[11px]">
+                  Verification code sent via {channel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'} to:
+                </span>
                 <div className="font-mono font-bold text-white text-sm">{phone}</div>
               </div>
               <button
@@ -392,7 +436,7 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  Enter 6-Digit OTP Code
+                  Enter 6-Digit Verification Code
                 </label>
                 <span className="text-[11px] text-slate-400 font-mono">
                   {otp.length}/6 digits
@@ -431,17 +475,17 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
                   disabled={loading}
                   onClick={handleResendOtp}
                   className="flex items-center space-x-1.5 text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg border border-emerald-500/30 font-bold transition-all cursor-pointer shadow-sm"
-                  title="Request a new 6-digit verification code to be sent to your phone"
+                  title="Request a new 6-digit verification code"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                  <span>Resend OTP</span>
+                  <span>Resend Code</span>
                 </button>
               )}
             </div>
 
             <div className="flex items-center space-x-2 text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>SMS alerts will be enabled immediately once this OTP is verified.</span>
+              <span>Real-time seat alerts will be enabled immediately once this code is verified.</span>
             </div>
 
             <button
@@ -457,7 +501,7 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
               ) : (
                 <>
                   <ShieldCheck className="w-4 h-4 text-slate-950" />
-                  <span>Verify & Activate SMS Alerts</span>
+                  <span>Verify & Activate Alerts</span>
                 </>
               )}
             </button>
@@ -489,7 +533,7 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
               </div>
 
               <p className="text-xs text-emerald-200/90 leading-relaxed">
-                When SeatScout Radar detects released Current Booking berths, an instant SMS alert will be delivered directly to this device!
+                When Indian Railways Current Booking berths become available, an instant notification will be delivered directly to your device!
               </p>
             </div>
 
@@ -502,23 +546,32 @@ export const PhoneNotificationModal: React.FC<PhoneNotificationModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
+                  onClick={() => handleSendTestAlert('WHATSAPP')}
+                  disabled={testSending}
+                  className="py-2.5 px-3.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4 text-emerald-400" />
+                  <span>{testSending ? 'Sending...' : 'Test WhatsApp'}</span>
+                </button>
+
+                <button
                   onClick={() => handleSendTestAlert('SMS')}
                   disabled={testSending}
                   className="py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
                 >
-                  <MessageSquare className="w-4 h-4 text-emerald-400" />
-                  <span>{testSending ? 'Sending...' : 'Send Test SMS'}</span>
-                </button>
-
-                <button
-                  onClick={() => handleSendTestAlert('BOTH')}
-                  disabled={testSending}
-                  className="py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-xs flex items-center justify-center space-x-2 shadow-md cursor-pointer"
-                >
-                  <Bell className="w-4 h-4 text-slate-950" />
-                  <span>{testSending ? 'Sending...' : 'Test SMS + Web Push'}</span>
+                  <MessageSquare className="w-4 h-4 text-teal-400" />
+                  <span>{testSending ? 'Sending...' : 'Test SMS'}</span>
                 </button>
               </div>
+
+              <button
+                onClick={() => handleSendTestAlert('BOTH')}
+                disabled={testSending}
+                className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-xs flex items-center justify-center space-x-2 shadow-md cursor-pointer"
+              >
+                <Bell className="w-4 h-4 text-slate-950" />
+                <span>{testSending ? 'Sending...' : 'Test WhatsApp/SMS + Web Push'}</span>
+              </button>
             </div>
 
             {/* Last Sent Alert preview */}

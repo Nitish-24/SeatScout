@@ -38,7 +38,7 @@ export class SmsGatewayService {
    */
   public static async sendOtpSms(toPhone: string, otp: string): Promise<SmsDispatchResult> {
     const provider = this.getActiveProvider();
-    const message = `[SeatScout] Your IRCTC Current Booking Radar verification code is: ${otp}. Valid for 5 minutes. Do not share this OTP with anyone.`;
+    const message = `Your verification code is: ${otp}. Valid for 5 minutes. Do not share this code with anyone.`;
 
     console.log(`\n==================================================`);
     console.log(`📡 [REAL SMS GATEWAY] Initiating Live SMS Dispatch`);
