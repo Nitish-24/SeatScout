@@ -199,9 +199,12 @@ export const StationAutocomplete: React.FC<StationAutocompleteProps> = ({
       {isOpen && (
         <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl max-h-72 overflow-y-auto divide-y divide-slate-800/60 backdrop-blur-md">
           {/* Quick Header */}
-          <div className="px-3 py-1.5 bg-slate-950/70 text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center justify-between sticky top-0 backdrop-blur z-10">
-            <span>{query.trim() ? `Search Results (${results.length})` : 'Popular Indian Railway Stations'}</span>
-            <span className="text-[9px] text-emerald-400/80 font-normal">All 9,000+ Stations of India</span>
+          <div className="px-3 py-1.5 bg-slate-950/80 text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center justify-between sticky top-0 backdrop-blur z-10 border-b border-slate-800">
+            <span>{query.trim() ? `Live Results (${results.length})` : 'Popular Indian Railway Stations'}</span>
+            <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Ixigo & All 9,000+ Stations
+            </span>
           </div>
 
           {/* Station List */}
@@ -235,12 +238,16 @@ export const StationAutocomplete: React.FC<StationAutocompleteProps> = ({
                           {stn.city && stn.city !== stn.name && (
                             <span className="text-[11px] text-slate-400 font-normal">({stn.city})</span>
                           )}
+                          {stn.source === 'ixigo' && (
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 font-medium">
+                              Ixigo
+                            </span>
+                          )}
                         </div>
-                        {stn.state && (
-                          <div className="text-[10px] text-slate-400 truncate">
-                            {stn.state}
-                          </div>
-                        )}
+                        <div className="text-[10px] text-slate-400 truncate flex items-center gap-2">
+                          {stn.state && <span>{stn.state}</span>}
+                          {stn.zone && <span className="text-slate-500">[{stn.zone} Zone]</span>}
+                        </div>
                       </div>
                     </div>
 
@@ -260,6 +267,24 @@ export const StationAutocomplete: React.FC<StationAutocompleteProps> = ({
               <p className="text-[11px] mt-1 text-slate-500">
                 Try searching by station code (e.g. <span className="text-emerald-400 font-mono">GKP</span>, <span className="text-emerald-400 font-mono">NDLS</span>) or town name.
               </p>
+              {query.trim().length >= 2 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const customCode = query.trim().toUpperCase().slice(0, 6);
+                    handleSelect({
+                      code: customCode,
+                      name: query.trim(),
+                      city: query.trim(),
+                      state: 'India',
+                      source: 'ixigo'
+                    });
+                  }}
+                  className="mt-3 inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/30 transition-colors"
+                >
+                  Use &quot;{query.trim().toUpperCase()}&quot; as station
+                </button>
+              )}
             </div>
           ) : null}
 

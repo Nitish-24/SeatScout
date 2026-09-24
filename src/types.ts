@@ -9,6 +9,11 @@ export interface Station {
   name: string;
   city: string;
   state: string;
+  zone?: string;
+  source?: 'ixigo' | 'indian-railways';
+  lat?: string;
+  lon?: string;
+  isMajor?: boolean;
 }
 
 export interface TrainSchedule {

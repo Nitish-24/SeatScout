@@ -235,22 +235,31 @@ const SERVER_CITY_CLUSTERS: Record<string, string[]> = {
   'LJN': ['LKO', 'LJN']
 };
 
-// API: Search Stations Autocomplete (Covers all 9,000+ Indian Railway Stations)
-app.get('/api/stations/search', (req, res) => {
-  const query = (req.query.q as string || '').trim();
-  const limit = Math.min(parseInt(req.query.limit as string, 10) || 35, 100);
-  const matched = searchAllStations(query, limit);
-  res.json(matched);
+// API: Search Stations Autocomplete (Covers all 9,000+ Indian Railway Stations with dynamic Ixigo API)
+app.get('/api/stations/search', async (req, res) => {
+  try {
+    const query = (req.query.q as string || '').trim();
+    const limit = Math.min(parseInt(req.query.limit as string, 10) || 35, 100);
+    const matched = await searchAllStations(query, limit);
+    res.json(matched);
+  } catch (err) {
+    console.error('[API Stations Search] Error:', err);
+    res.json([]);
+  }
 });
 
 // API: Get station details by Station Code (e.g. /api/stations/NDLS, /api/stations/GKP)
-app.get('/api/stations/:code', (req, res) => {
-  const code = (req.params.code || '').toUpperCase().trim();
-  const stn = getStationByCode(code);
-  if (!stn) {
-    return res.status(404).json({ error: `Station code ${code} not found` });
+app.get('/api/stations/:code', async (req, res) => {
+  try {
+    const code = (req.params.code || '').toUpperCase().trim();
+    const stn = await getStationByCode(code);
+    if (!stn) {
+      return res.status(404).json({ error: `Station code ${code} not found` });
+    }
+    res.json(stn);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to retrieve station details' });
   }
-  res.json(stn);
 });
 
 // API: Get all popular railway stations
@@ -345,8 +354,8 @@ app.get('/api/trains/search', async (req, res) => {
   const query = (req.query.q as string || req.query.trainNumber as string || '').trim().toLowerCase();
   const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
 
-  const fromStation = getStationByCode(from) || { code: from, name: `${from} Station`, city: from, state: '' };
-  const toStation = getStationByCode(to) || { code: to, name: `${to} Station`, city: to, state: '' };
+  const fromStation = (await getStationByCode(from)) || { code: from, name: `${from} Station`, city: from, state: '' };
+  const toStation = (await getStationByCode(to)) || { code: to, name: `${to} Station`, city: to, state: '' };
 
   try {
     // 1. Fetch REAL live train timetable & real PRS availability from official Indian Railways PRS gateway

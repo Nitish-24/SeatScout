@@ -8,6 +8,9 @@ export interface IndianRailwayStation {
   state: string;
   zone?: string;
   isMajor?: boolean;
+  source?: 'ixigo' | 'indian-railways';
+  lat?: string;
+  lon?: string;
 }
 
 // In-memory cache and indexed lookup tables
@@ -26,7 +29,7 @@ const MAJOR_STATION_CODES = new Set([
 ]);
 
 /**
- * Initialize station dataset from server data directory
+ * Initialize national station dataset from server data directory
  */
 export function initializeStationDatabase(): void {
   try {
@@ -41,7 +44,8 @@ export function initializeStationDatabase(): void {
         city: s.city ? s.city.trim() : s.name.trim(),
         state: s.state ? s.state.trim() : '',
         zone: s.zone ? s.zone.trim() : '',
-        isMajor: MAJOR_STATION_CODES.has(s.code.toUpperCase().trim())
+        isMajor: MAJOR_STATION_CODES.has(s.code.toUpperCase().trim()),
+        source: 'indian-railways'
       }));
 
       // Populate lookup map
@@ -63,6 +67,101 @@ export function initializeStationDatabase(): void {
 initializeStationDatabase();
 
 /**
+ * Dynamically queries Ixigo API for real-time station suggestions across India.
+ * Endpoint: https://www.ixigo.com/action/content/trainstation?searchFor=trainstationsLatLon&anchor=false&value={query}
+ */
+export async function fetchIxigoStations(query: string): Promise<IndianRailwayStation[]> {
+  const cleanQuery = (query || '').trim();
+  if (!cleanQuery) return [];
+
+  const url = `https://www.ixigo.com/action/content/trainstation?searchFor=trainstationsLatLon&anchor=false&value=${encodeURIComponent(cleanQuery)}`;
+  
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Referer': 'https://www.ixigo.com/trains',
+        'Origin': 'https://www.ixigo.com'
+      }
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      console.warn(`[StationService] Ixigo station API returned status ${res.status}`);
+      return [];
+    }
+
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+
+    const ixigoStations: IndianRailwayStation[] = [];
+    const seenCodes = new Set<string>();
+
+    for (const item of data) {
+      if (!item || !item.e || typeof item.e !== 'string') continue;
+
+      // Matches code inside parentheses: e.g. "Delhi - All stations(NDLS)" or "New Delhi (NDLS)" or "Kanpur Central (CNB)"
+      const match = item.e.match(/\(([A-Z0-9]+)\)$/);
+      if (!match) continue;
+
+      const code = match[1].toUpperCase().trim();
+      if (!code || code.length > 6) continue;
+
+      // Extract clean station name
+      let cleanName = item.e
+        .replace(/\s*\([A-Z0-9]+\)$/, '')
+        .replace(/\s*-\s*All stations/i, '')
+        .trim();
+
+      if (!cleanName) cleanName = code;
+
+      // Existing cached station metadata fallback for state & zone
+      const existing = stationCodeMap.get(code);
+
+      const stationObj: IndianRailwayStation = {
+        code,
+        name: cleanName,
+        city: item.c ? item.c.trim() : (existing?.city || cleanName.split(' ')[0]),
+        state: existing?.state || '',
+        zone: existing?.zone || '',
+        lat: item.lat || undefined,
+        lon: item.lon || undefined,
+        isMajor: MAJOR_STATION_CODES.has(code),
+        source: 'ixigo'
+      };
+
+      // Add to dynamic cache
+      if (!stationCodeMap.has(code) || !stationCodeMap.get(code)?.name) {
+        stationCodeMap.set(code, stationObj);
+        stationsList.push(stationObj);
+      } else if (existing) {
+        // Enrich existing entry with coordinates
+        if (item.lat && !existing.lat) existing.lat = item.lat;
+        if (item.lon && !existing.lon) existing.lon = item.lon;
+      }
+
+      if (!seenCodes.has(code)) {
+        seenCodes.add(code);
+        ixigoStations.push(stationObj);
+      }
+    }
+
+    return ixigoStations;
+  } catch (err: any) {
+    if (err.name !== 'AbortError') {
+      console.warn(`[StationService] Ixigo station API query failed for "${cleanQuery}":`, err.message || err);
+    }
+    return [];
+  }
+}
+
+/**
  * Get all stations
  */
 export function getAllStations(): IndianRailwayStation[] {
@@ -70,9 +169,31 @@ export function getAllStations(): IndianRailwayStation[] {
 }
 
 /**
- * Get station by code (instant O(1))
+ * Get station by code (instant O(1) with dynamic Ixigo fallback)
  */
-export function getStationByCode(code: string): IndianRailwayStation | undefined {
+export async function getStationByCode(code: string): Promise<IndianRailwayStation | undefined> {
+  if (!code) return undefined;
+  const cleanCode = code.trim().toUpperCase();
+
+  const cached = stationCodeMap.get(cleanCode);
+  if (cached) return cached;
+
+  // Query Ixigo API dynamically to resolve station code
+  try {
+    const dynamicResults = await fetchIxigoStations(cleanCode);
+    const found = dynamicResults.find(s => s.code === cleanCode);
+    if (found) return found;
+  } catch (e) {
+    // Ignore and return undefined
+  }
+
+  return undefined;
+}
+
+/**
+ * Synchronous get station by code from memory cache
+ */
+export function getStationByCodeSync(code: string): IndianRailwayStation | undefined {
   if (!code) return undefined;
   return stationCodeMap.get(code.trim().toUpperCase());
 }
@@ -95,27 +216,30 @@ export function getPopularStations(): IndianRailwayStation[] {
 }
 
 /**
- * Search stations with intelligent relevance scoring
- * - Exact code match (e.g. GKP -> Gorakhpur) gets highest priority
- * - Prefix code matches
- * - Station name matches
- * - City / Town matches
- * - State matches
+ * Search stations with live dynamic Ixigo integration + intelligent local relevance scoring.
+ * - Queries Ixigo API in real-time
+ * - Searches comprehensive Indian Railway index (8,900+ stations)
+ * - Merges and deduplicates results with exact matches prioritized
  */
-export function searchStations(query: string, limit = 30): IndianRailwayStation[] {
-  const q = (query || '').trim().toUpperCase();
+export async function searchStations(query: string, limit = 30): Promise<IndianRailwayStation[]> {
+  const q = (query || '').trim();
   if (!q) {
     return getPopularStations().slice(0, limit);
   }
 
+  const qUpper = q.toUpperCase();
   const qLower = q.toLowerCase();
 
+  // Run Ixigo live API search concurrently
+  const ixigoPromise = fetchIxigoStations(q).catch(() => [] as IndianRailwayStation[]);
+
+  // Search local in-memory dataset
   interface ScoredStation {
     station: IndianRailwayStation;
     score: number;
   }
 
-  const results: ScoredStation[] = [];
+  const localResults: ScoredStation[] = [];
 
   for (const stn of stationsList) {
     const code = stn.code;
@@ -125,51 +249,74 @@ export function searchStations(query: string, limit = 30): IndianRailwayStation[
     let score = 0;
 
     // 1. Exact code match (highest precedence)
-    if (code === q) {
-      score += 2000;
-    } else if (code.startsWith(q)) {
-      score += 1000 - (code.length - q.length) * 50;
-    } else if (code.includes(q)) {
-      score += 600;
+    if (code === qUpper) {
+      score += 2500;
+    } else if (code.startsWith(qUpper)) {
+      score += 1200 - (code.length - qUpper.length) * 50;
+    } else if (code.includes(qUpper)) {
+      score += 700;
     }
 
     // 2. Name matches
     if (nameLower === qLower) {
-      score += 1200;
+      score += 1500;
     } else if (nameLower.startsWith(qLower)) {
-      score += 800;
+      score += 900;
     } else if (nameLower.includes(' ' + qLower)) {
-      score += 500;
+      score += 550;
     } else if (nameLower.includes(qLower)) {
-      score += 300;
+      score += 350;
     }
 
     // 3. City matches
     if (cityLower === qLower) {
-      score += 700;
+      score += 800;
     } else if (cityLower.startsWith(qLower)) {
-      score += 400;
+      score += 450;
     } else if (cityLower.includes(qLower)) {
-      score += 200;
+      score += 250;
     }
 
     // 4. State matches
     if (stateLower.startsWith(qLower)) {
-      score += 100;
+      score += 150;
     }
 
     // 5. Popularity boost
     if (stn.isMajor) {
-      score += 150;
+      score += 200;
     }
 
     if (score > 0) {
-      results.push({ station: stn, score });
+      localResults.push({ station: stn, score });
     }
   }
 
-  // Sort descending by relevance score
-  results.sort((a, b) => b.score - a.score);
+  localResults.sort((a, b) => b.score - a.score);
 
-  return results.slice(0, limit).map(r => r.station);
+  // Await Ixigo results
+  const ixigoResults = await ixigoPromise;
+
+  // Merge Ixigo live results with local results, avoiding duplicates
+  const finalStations: IndianRailwayStation[] = [];
+  const seenCodes = new Set<string>();
+
+  // If Ixigo returned live results, prioritize them
+  for (const stn of ixigoResults) {
+    if (!seenCodes.has(stn.code)) {
+      seenCodes.add(stn.code);
+      finalStations.push(stn);
+    }
+  }
+
+  // Add scored local stations
+  for (const { station } of localResults) {
+    if (!seenCodes.has(station.code)) {
+      seenCodes.add(station.code);
+      finalStations.push(station);
+      if (finalStations.length >= limit) break;
+    }
+  }
+
+  return finalStations.slice(0, limit);
 }
