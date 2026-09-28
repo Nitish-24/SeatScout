@@ -51,6 +51,7 @@ interface RadarDashboardProps {
   highlightRadarId?: string | null;
   onOpenPhoneModal?: () => void;
   onDeleteRadar?: (id: string) => void;
+  onOpenAlertModal?: (radar: ServerRadarJob) => void;
 }
 
 export const RadarDashboard: React.FC<RadarDashboardProps> = ({
@@ -60,7 +61,8 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
   soundEnabled = true,
   highlightRadarId = null,
   onOpenPhoneModal,
-  onDeleteRadar
+  onDeleteRadar,
+  onOpenAlertModal
 }) => {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'HISTORY'>('ACTIVE');
   const [viewTrainsModalRadar, setViewTrainsModalRadar] = useState<ServerRadarJob | null>(null);
@@ -284,6 +286,7 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
                 onStop={() => handleStopRadar(radar.id)}
                 onForceScan={() => handleForceScan(radar.id)}
                 onDelete={() => handleDeleteRadar(radar.id)}
+                onOpenAlertModal={onOpenAlertModal ? () => onOpenAlertModal(radar) : undefined}
               />
             ))
           )}
@@ -378,6 +381,7 @@ interface RadarCardProps {
   onStop: () => void;
   onForceScan: () => void;
   onDelete: () => void;
+  onOpenAlertModal?: () => void;
 }
 
 const RadarCard: React.FC<RadarCardProps> = ({
@@ -388,7 +392,8 @@ const RadarCard: React.FC<RadarCardProps> = ({
   onTogglePause,
   onStop,
   onForceScan,
-  onDelete
+  onDelete,
+  onOpenAlertModal
 }) => {
   const [timeAgo, setTimeAgo] = useState<string>('just now');
 
@@ -525,15 +530,27 @@ const RadarCard: React.FC<RadarCardProps> = ({
                 Status: <strong className="text-emerald-300 font-bold">{radar.foundSeatInfo.availabilityCode}</strong> ({radar.foundSeatInfo.availableBerths} berths)
               </div>
             </div>
-            <a
-              href="https://www.irctc.co.in/nget/train-search"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center space-x-1.5 transition-all shadow-md shrink-0"
-            >
-              <span>Book on IRCTC</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            <div className="flex items-center space-x-2 shrink-0">
+              {onOpenAlertModal && (
+                <button
+                  type="button"
+                  onClick={onOpenAlertModal}
+                  className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center space-x-1.5 transition-all border border-emerald-500/40 cursor-pointer shadow-sm"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>View Alert</span>
+                </button>
+              )}
+              <a
+                href="https://www.irctc.co.in/nget/train-search"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center space-x-1.5 transition-all shadow-md shrink-0"
+              >
+                <span>Book on IRCTC</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
           </div>
         )}
 

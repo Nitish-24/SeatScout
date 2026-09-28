@@ -16,9 +16,10 @@ import {
   saveStoredTheme,
   AppTheme
 } from './utils/storage';
-import { playSeatAlertSound, sendDesktopNotification, requestNotificationPermission } from './utils/audioAlert';
+import { playSeatAlertSound, sendDesktopNotification, requestNotificationPermission, triggerInAppNotification } from './utils/audioAlert';
 import { PhoneNotificationModal } from './components/PhoneNotificationModal';
 import { InAppNotificationToast } from './components/InAppNotificationToast';
+import { SeatAvailableModal } from './components/SeatAvailableModal';
 import { PhoneNotificationClient } from './services/phoneNotificationClient';
 import { 
   fetchLiveAvailability, 
@@ -37,7 +38,7 @@ import { HowItWorksScreen } from './components/HowItWorksScreen';
 import { HistoryScreen } from './components/HistoryScreen';
 import { RadarDashboard } from './components/RadarDashboard';
 import { RadarApiService } from './services/radarApiService';
-import { ServerRadarJob } from './types';
+import { ServerRadarJob, TrainClass, QuotaType } from './types';
 
 export default function App() {
   const [watches, setWatches] = useState<SeatScoutWatch[]>(() => {
@@ -62,6 +63,13 @@ export default function App() {
     const initial = getInitialWatches();
     return initial.length > 0 ? initial[0].id : null;
   });
+
+  // Active Alert Modal State (Celebratory Confetti & Actionable Booking Portal)
+  const [activeModalRadar, setActiveModalRadar] = useState<ServerRadarJob | null>(null);
+  const [activeModalWatch, setActiveModalWatch] = useState<SeatScoutWatch | null>(null);
+
+  // Track notified radar events so alerts trigger reliably on new seat release
+  const notifiedRadarFingerprintsRef = useRef<Map<string, string>>(new Map());
 
   // Phone & SMS Notification State
   const [isPhoneModalOpen, setIsPhoneModalOpen] = useState<boolean>(false);
@@ -98,6 +106,70 @@ export default function App() {
     const interval = setInterval(refreshServerRadars, 3500);
     return () => clearInterval(interval);
   }, [refreshServerRadars]);
+
+  // Monitor server radars (both Route Radar and Train Radar) for seat release events:
+  // Plays instant audio chime, broadcasts in-app popup toast, desktop notification, and opens celebratory modal!
+  useEffect(() => {
+    if (!serverRadars || serverRadars.length === 0) return;
+
+    serverRadars.forEach((radar) => {
+      if (radar.status === 'SEAT_FOUND' && radar.foundSeatInfo) {
+        const fingerprint = `${radar.status}_${radar.foundSeatInfo.detectedAt || ''}_${radar.foundSeatInfo.availableBerths}_${radar.foundSeatInfo.trainNumber}_${radar.foundSeatInfo.allAvailableTrains?.length || 0}`;
+
+        const lastFingerprint = notifiedRadarFingerprintsRef.current.get(radar.id);
+
+        if (lastFingerprint !== fingerprint) {
+          notifiedRadarFingerprintsRef.current.set(radar.id, fingerprint);
+
+          // 1. Play the audio chime alert immediately
+          if (settings.soundEnabled) {
+            playSeatAlertSound('chime', settings.volume);
+          }
+
+          // 2. Format informative title & body
+          const isRoute = radar.mode === 'ROUTE';
+          const trains = radar.foundSeatInfo.allAvailableTrains || [];
+          const primary = radar.foundSeatInfo;
+
+          const title = isRoute
+            ? `🎉 Current Booking Seats Available on ${radar.fromCode} → ${radar.toCode}!`
+            : `🎉 Confirmed Berth on ${primary.trainNumber} ${primary.trainName}!`;
+
+          let body = '';
+          if (isRoute && trains.length > 1) {
+            const trainList = trains.slice(0, 3).map((t) => `${t.trainNumber} (${t.seatsCount} seats)`).join(', ');
+            body = `Seats released on ${trains.length} trains: ${trainList}. Tap to view and book on IRCTC!`;
+          } else {
+            body = `${primary.availableBerths} berth(s) available on ${primary.trainNumber} ${primary.trainName} for ${radar.journeyDate} (${radar.travelClass}). Tap to book on IRCTC!`;
+          }
+
+          // 3. Trigger In-App Notification Toast Popup & Desktop Push
+          triggerInAppNotification(title, body);
+          sendDesktopNotification(title, { body });
+
+          // 4. Open the celebration and booking modal popup
+          setActiveModalRadar(radar);
+
+          // 5. Record to alert history
+          const newHistItem: AlertHistoryItem = {
+            id: `hist-${radar.id}-${Date.now()}`,
+            watchId: radar.id,
+            timestamp: new Date().toISOString(),
+            trainNumber: primary.trainNumber,
+            trainName: primary.trainName,
+            fromCode: radar.fromCode,
+            toCode: radar.toCode,
+            journeyDate: radar.journeyDate,
+            travelClass: radar.travelClass as TrainClass,
+            quota: radar.quota as QuotaType,
+            availableBerths: primary.availableBerths,
+            actionTaken: 'viewed'
+          };
+          setHistory((prev) => [newHistItem, ...prev.filter((h) => h.id !== newHistItem.id)]);
+        }
+      }
+    });
+  }, [serverRadars, settings.soundEnabled, settings.volume]);
 
   // Handle URL deep-links from push notifications (e.g. /?screen=monitoring&radarId=...)
   useEffect(() => {
@@ -244,8 +316,9 @@ export default function App() {
           }).catch((err) => console.warn('Automatic SMS alert error:', err));
         }
 
-        // Set active watch
+        // Set active watch and open celebratory modal
         setActiveWatchId(targetFoundWatch.id);
+        setActiveModalWatch(targetFoundWatch);
         setCurrentScreen('monitoring');
 
         // Record in History
@@ -585,7 +658,25 @@ export default function App() {
       {/* In-App Live Notification Toast Broadcast */}
       <InAppNotificationToast />
 
-      {/* Phone OTP Verification & SMS Alert Modal */}
+      {/* Seat Available Alert Celebration & Direct Booking Modal */}
+      <SeatAvailableModal
+        isOpen={Boolean(activeModalRadar || activeModalWatch)}
+        radar={activeModalRadar}
+        watch={activeModalWatch}
+        onClose={() => {
+          setActiveModalRadar(null);
+          setActiveModalWatch(null);
+        }}
+        onMarkAsBooked={(id) => {
+          if (id && activeModalWatch) {
+            handleMarkBooked(id);
+          }
+          setActiveModalRadar(null);
+          setActiveModalWatch(null);
+        }}
+      />
+
+      {/* Phone & Alert Modal */}
       <PhoneNotificationModal
         isOpen={isPhoneModalOpen}
         onClose={() => setIsPhoneModalOpen(false)}
@@ -616,6 +707,7 @@ export default function App() {
             highlightRadarId={highlightRadarId}
             onOpenPhoneModal={() => setIsPhoneModalOpen(true)}
             onDeleteRadar={handleDeleteServerRadar}
+            onOpenAlertModal={(r) => setActiveModalRadar(r)}
           />
         )}
 
