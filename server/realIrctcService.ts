@@ -96,14 +96,11 @@ function handleGatewayFailure(name: string, err: any) {
   b.failures++;
   b.lastFailureTime = Date.now();
   
-  const errCode = err?.cause?.code || err?.code || err?.name || 'TIMEOUT';
-  const isConnectTimeout = errCode === 'UND_ERR_CONNECT_TIMEOUT' || errCode === 'ETIMEDOUT' || errCode === 'ECONNREFUSED' || err?.name === 'TimeoutError' || err?.name === 'AbortError';
+  const errCode = err?.cause?.code || err?.code || (err?.name && err.name !== 'Error' ? err.name : 'TIMEOUT');
+  const isConnectTimeout = errCode === 'UND_ERR_CONNECT_TIMEOUT' || errCode === 'ETIMEDOUT' || errCode === 'ECONNREFUSED' || errCode === 'TimeoutError' || errCode === 'AbortError';
 
   if (isConnectTimeout || b.failures >= 3) {
     b.cooldownUntil = Date.now() + 5_000;
-    console.log(`[RealIRCTC] Upstream ${name} gateway connection issue (${errCode}). Cooldown active for 5s.`);
-  } else {
-    console.log(`[RealIRCTC] Upstream ${name} gateway notice (${errCode}).`);
   }
 }
 
@@ -120,20 +117,24 @@ function genHex(n = 32): string {
 }
 
 export function formatDateForIRCTC(dateStr: string): string {
-  // Input: YYYY-MM-DD -> Output: DD-MM-YYYY
+  // Input: YYYY-MM-DD or DD-MM-YYYY or ISO string -> Output: DD-MM-YYYY
   if (!dateStr) {
     const today = new Date();
     return `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
   }
-  const parts = dateStr.split('-');
+  const clean = String(dateStr).split('T')[0].trim().replace(/\//g, '-');
+  const parts = clean.split('-');
   if (parts.length === 3) {
     if (parts[0].length === 4) {
-      // YYYY-MM-DD
-      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      // YYYY-MM-DD -> DD-MM-YYYY
+      return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
     }
-    return dateStr;
+    if (parts[2].length === 4) {
+      // DD-MM-YYYY -> DD-MM-YYYY
+      return `${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[2]}`;
+    }
   }
-  return dateStr;
+  return clean;
 }
 
 export function formatIRCTCDuration(durationVal: string | number): string {
@@ -826,8 +827,8 @@ export async function fetchRealIrctcAvailabilityForTrain(
         return parsedDays;
       }
     }
-  } catch (err) {
-    console.warn(`[RealIRCTC] Ixigo live availability fetch error for train ${cleanTrainNo}:`, err);
+  } catch {
+    // Proceed to corridor train cache and local PRS fallback
   }
 
   // Fallback: Check corridor train availability cache with distinct multi-day variation
