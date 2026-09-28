@@ -1,0 +1,6 @@
+{
+  "name": "SeatScout",
+  "description": "Smart Current Booking (CURR_AVBL) monitor for Indian Railways. Stop refreshing IRCTC — SeatScout watches and alerts when confirmed seats appear.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
