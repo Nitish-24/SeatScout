@@ -12,12 +12,30 @@ interface VapidKeys {
 
 const VAPID_FILE = path.resolve(process.cwd(), RADAR_CONFIG.VAPID_FILE);
 
+function isValidVapidKey(publicKey?: string, privateKey?: string): boolean {
+  if (!publicKey || !privateKey || typeof publicKey !== 'string' || typeof privateKey !== 'string') {
+    return false;
+  }
+  const cleanPub = publicKey.trim();
+  const cleanPriv = privateKey.trim();
+  if (cleanPub === 'NA' || cleanPriv === 'NA' || cleanPub.length < 50 || cleanPriv.length < 20) {
+    return false;
+  }
+  try {
+    const pubBuf = Buffer.from(cleanPub, 'base64url');
+    const privBuf = Buffer.from(cleanPriv, 'base64url');
+    return pubBuf.length === 65 && privBuf.length === 32;
+  } catch {
+    return false;
+  }
+}
+
 function getOrGenerateVapidKeys(): VapidKeys {
-  // Check env vars first
-  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  // Check env vars first (only if valid)
+  if (isValidVapidKey(process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY)) {
     return {
-      publicKey: process.env.VAPID_PUBLIC_KEY,
-      privateKey: process.env.VAPID_PRIVATE_KEY
+      publicKey: process.env.VAPID_PUBLIC_KEY!.trim(),
+      privateKey: process.env.VAPID_PRIVATE_KEY!.trim()
     };
   }
 
@@ -26,8 +44,11 @@ function getOrGenerateVapidKeys(): VapidKeys {
     if (fs.existsSync(VAPID_FILE)) {
       const content = fs.readFileSync(VAPID_FILE, 'utf-8');
       const parsed = JSON.parse(content);
-      if (parsed.publicKey && parsed.privateKey) {
-        return parsed;
+      if (isValidVapidKey(parsed.publicKey, parsed.privateKey)) {
+        return {
+          publicKey: parsed.publicKey.trim(),
+          privateKey: parsed.privateKey.trim()
+        };
       }
     }
   } catch (err) {
@@ -48,17 +69,37 @@ function getOrGenerateVapidKeys(): VapidKeys {
   return generated;
 }
 
-const vapidKeys = getOrGenerateVapidKeys();
+let vapidKeys = getOrGenerateVapidKeys();
 
-try {
-  webpush.setVapidDetails(
-    'mailto:seatscout-radar@railway-alerts.local',
-    vapidKeys.publicKey,
-    vapidKeys.privateKey
-  );
-} catch (err) {
-  console.error('[PushService] Failed to set VAPID details:', err);
+function initializeVapid() {
+  try {
+    webpush.setVapidDetails(
+      'mailto:seatscout-radar@railway-alerts.local',
+      vapidKeys.publicKey,
+      vapidKeys.privateKey
+    );
+  } catch (err) {
+    console.warn('[PushService] Initial VAPID keys failed validation, generating fresh keys:', err);
+    vapidKeys = webpush.generateVAPIDKeys();
+    try {
+      const dir = path.dirname(VAPID_FILE);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(VAPID_FILE, JSON.stringify(vapidKeys, null, 2), 'utf-8');
+      webpush.setVapidDetails(
+        'mailto:seatscout-radar@railway-alerts.local',
+        vapidKeys.publicKey,
+        vapidKeys.privateKey
+      );
+      console.log('[PushService] Successfully reinitialized fresh VAPID keys');
+    } catch (secondErr) {
+      console.error('[PushService] Critical: Failed to configure VAPID details:', secondErr);
+    }
+  }
 }
+
+initializeVapid();
 
 export class PushService {
   public static getPublicKey(): string {
