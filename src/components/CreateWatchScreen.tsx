@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ArrowRight, 
+  ArrowLeftRight,
   Sparkles, 
   Clock, 
   Users,
@@ -361,7 +362,7 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
               title="Swap stations"
               className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700"
             >
-              <ArrowRight className="w-4 h-4 rotate-90 sm:rotate-0" />
+              <ArrowLeftRight className="w-4 h-4 rotate-90 sm:rotate-0" />
             </button>
           </div>
 
