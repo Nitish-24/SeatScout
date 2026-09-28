@@ -21,7 +21,7 @@ import {
 } from '../types';
 import { POPULAR_STATIONS, POPULAR_ROUTES } from '../data/trainData';
 import { DatePickerCalendar, formatDateISO } from './DatePickerCalendar';
-import { IxigoAvailabilityStrip } from './IxigoAvailabilityStrip';
+import { TrainAvailabilityStrip } from './TrainAvailabilityStrip';
 import { ChartingCountdownWidget } from './ChartingCountdownWidget';
 import { calculateEstimatedChartingTime } from '../utils/chartingTime';
 import { fetchLiveTrains } from '../services/railwayApi';
@@ -206,7 +206,7 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
     setToStation(temp);
   };
 
-  // Quick Watch Trigger from Ixigo Strip
+  // Quick Watch Trigger from Live Availability Strip
   const handleStartWatchForTrain = async (
     trainNumber: string,
     trainName: string,
@@ -631,9 +631,9 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
                 </div>
               </div>
 
-              {/* Ixigo Live Availability Strip Component (Directly updates on train/quota/date) */}
+              {/* Live Multi-Day Availability Strip Component */}
               <div>
-                <IxigoAvailabilityStrip
+                <TrainAvailabilityStrip
                   trainNumber={train.number}
                   trainName={train.name}
                   fromCode={train.fromCode || fromStation.code}

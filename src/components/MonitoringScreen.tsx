@@ -23,7 +23,7 @@ import {
 import { SeatScoutWatch, TrainClass } from '../types';
 import { QUOTA_DETAILS, TRAIN_DATABASE } from '../data/trainData';
 import { EditWatchModal } from './EditWatchModal';
-import { IxigoAvailabilityStrip } from './IxigoAvailabilityStrip';
+import { TrainAvailabilityStrip } from './TrainAvailabilityStrip';
 import { ChartingCountdownWidget } from './ChartingCountdownWidget';
 import { fetchLiveTrainRunningStatus, LiveTrainRunningStatus } from '../services/railwayApi';
 
@@ -400,9 +400,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
           </div>
         </div>
 
-        {/* ================= IXIGO LIVE AVAILABILITY STRIP ================= */}
+        {/* ================= LIVE TRAIN AVAILABILITY STRIP ================= */}
         <div>
-          <IxigoAvailabilityStrip
+          <TrainAvailabilityStrip
             trainNumber={currentWatch.trainNumber || '12012'}
             trainName={currentWatch.trainName}
             fromCode={currentWatch.fromStation.code}

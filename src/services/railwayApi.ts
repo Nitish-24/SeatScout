@@ -1,6 +1,6 @@
 import { Station, TrainSchedule, TrainClass, QuotaType } from '../types';
 import { POPULAR_STATIONS, getTrainsForRoute } from '../data/trainData';
-import { DayAvailability, getMultiDayAvailability } from '../utils/ixigoAvailability';
+import { DayAvailability, getMultiDayAvailability } from '../utils/trainAvailability';
 import { searchStations as searchStationsFromService } from './stationService';
 
 export interface TrainSearchResult {

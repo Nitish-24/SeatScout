@@ -10,7 +10,7 @@ export interface Station {
   city: string;
   state: string;
   zone?: string;
-  source?: 'ixigo' | 'indian-railways';
+  source?: 'national-rail' | 'indian-railways';
   lat?: string;
   lon?: string;
   isMajor?: boolean;

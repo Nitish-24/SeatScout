@@ -203,7 +203,7 @@ export const StationAutocomplete: React.FC<StationAutocompleteProps> = ({
             <span>{query.trim() ? `Live Results (${results.length})` : 'Popular Indian Railway Stations'}</span>
             <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              Ixigo & All 9,000+ Stations
+              All 9,000+ IRCTC Stations
             </span>
           </div>
 
@@ -237,11 +237,6 @@ export const StationAutocomplete: React.FC<StationAutocompleteProps> = ({
                           <span>{stn.name}</span>
                           {stn.city && stn.city !== stn.name && (
                             <span className="text-[11px] text-slate-400 font-normal">({stn.city})</span>
-                          )}
-                          {stn.source === 'ixigo' && (
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 font-medium">
-                              Ixigo
-                            </span>
                           )}
                         </div>
                         <div className="text-[10px] text-slate-400 truncate flex items-center gap-2">
@@ -277,7 +272,7 @@ export const StationAutocomplete: React.FC<StationAutocompleteProps> = ({
                       name: query.trim(),
                       city: query.trim(),
                       state: 'India',
-                      source: 'ixigo'
+                      source: 'indian-railways'
                     });
                   }}
                   className="mt-3 inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/30 transition-colors"

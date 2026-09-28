@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ExternalLink, Radio, RefreshCw, Sparkles, CheckCircle2, AlertCircle, AlertTriangle, ShieldAlert, ArrowRight } from 'lucide-react';
 import { TrainClass, QuotaType } from '../types';
 import { CLASS_LABELS } from '../data/trainData';
-import { DayAvailability } from '../utils/ixigoAvailability';
+import { DayAvailability } from '../utils/trainAvailability';
 import { fetchLiveAvailabilityDetailed } from '../services/railwayApi';
 
-interface IxigoAvailabilityStripProps {
+interface TrainAvailabilityStripProps {
   trainNumber: string;
   trainName?: string;
   availableClasses?: TrainClass[];
@@ -20,7 +20,7 @@ interface IxigoAvailabilityStripProps {
   isWatching?: boolean;
 }
 
-export const IxigoAvailabilityStrip: React.FC<IxigoAvailabilityStripProps> = ({
+export const TrainAvailabilityStrip: React.FC<TrainAvailabilityStripProps> = ({
   trainNumber,
   trainName,
   availableClasses = ['CC', 'EC', '3A', '2A'],
