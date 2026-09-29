@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ExternalLink, Radio, RefreshCw, Sparkles, CheckCircle2, AlertCircle, AlertTriangle, ShieldAlert, ArrowRight } from 'lucide-react';
+import { ExternalLink, Radio, RefreshCw, Sparkles, CheckCircle2, AlertCircle, AlertTriangle, ShieldAlert, ArrowRight, Layers } from 'lucide-react';
 import { TrainClass, QuotaType } from '../types';
 import { CLASS_LABELS } from '../data/trainData';
 import { DayAvailability } from '../utils/trainAvailability';
@@ -16,7 +16,7 @@ interface TrainAvailabilityStripProps {
   fromCode?: string;
   toCode?: string;
   initialAvailability?: Record<string, any>;
-  onSelectDateForWatch?: (dateStr: string, cls: TrainClass, dayInfo: DayAvailability) => void;
+  onSelectDateForWatch?: (dateStr: string, cls: TrainClass | 'ANY', dayInfo: DayAvailability) => void;
   isWatching?: boolean;
 }
 
@@ -563,7 +563,7 @@ export const TrainAvailabilityStrip: React.FC<TrainAvailabilityStripProps> = ({
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
 
-              {/* Set Radar / Watch Button */}
+              {/* Set Radar / Watch Button for active tab class */}
               {onSelectDateForWatch && (
                 <button
                   type="button"
@@ -573,9 +573,27 @@ export const TrainAvailabilityStrip: React.FC<TrainAvailabilityStripProps> = ({
                       ? 'bg-emerald-600 hover:bg-emerald-500 text-white ring-2 ring-emerald-400/40'
                       : 'bg-[#f27405] hover:bg-[#d96300] text-white'
                   }`}
+                  title={`Start 24/7 radar for class ${activeTab}`}
                 >
                   <Radio className={`w-3.5 h-3.5 ${isWatching ? 'animate-pulse text-emerald-200' : ''}`} />
-                  <span>{isWatching ? 'Radar Active' : 'Watch with Radar'}</span>
+                  <span>{isWatching ? 'Radar Active' : `Watch ${activeTab}`}</span>
+                </button>
+              )}
+
+              {/* Set Radar for All Classes on this train */}
+              {onSelectDateForWatch && (
+                <button
+                  type="button"
+                  onClick={() => onSelectDateForWatch(selectedDay.dateStr, 'ANY', selectedDay)}
+                  className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer ${
+                    isWatching
+                      ? 'bg-slate-800 text-slate-300'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700'
+                  }`}
+                  title="Monitor all available classes on this train"
+                >
+                  <Layers className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Watch All Classes</span>
                 </button>
               )}
             </div>

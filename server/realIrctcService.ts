@@ -624,8 +624,10 @@ export async function fetchRealIrctcAvailabilityForTrain(
 
   let activeClass = cleanClass;
   let isClassSwitched = false;
-  // If cleanClass is a recognized IRCTC class, only switch if train specifically doesn't have sleeper/chair coaches
-  if (cleanClass !== 'ANY' && matchedTrain?.classes && matchedTrain.classes.length > 0) {
+  if (cleanClass === 'ANY' || cleanClass === 'ALL') {
+    activeClass = matchedTrain?.classes?.[0] || '3A';
+    isClassSwitched = true;
+  } else if (matchedTrain?.classes && matchedTrain.classes.length > 0) {
     if (!matchedTrain.classes.includes(cleanClass)) {
       const isChairCarOnly = matchedTrain.classes.every((c: string) => ['CC', 'EC', 'EA', '2S'].includes(c));
       const isSleeperOnly = matchedTrain.classes.every((c: string) => ['1A', '2A', '3A', '3E', 'SL'].includes(c));

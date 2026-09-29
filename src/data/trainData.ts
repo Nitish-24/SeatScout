@@ -34,14 +34,14 @@ export const POPULAR_STATIONS: Station[] = [
 ];
 
 export const POPULAR_ROUTES = [
-  { from: 'CDG', to: 'NDLS', label: 'Chandigarh → New Delhi (Shatabdi Corridor)' },
+  { from: 'CDG', to: 'NDLS', label: 'Chandigarh → New Delhi' },
   { from: 'NDLS', to: 'CDG', label: 'New Delhi → Chandigarh' },
-  { from: 'CSMT', to: 'PUNE', label: 'Mumbai CSMT → Pune (Deccan Queen Corridor)' },
+  { from: 'CSMT', to: 'PUNE', label: 'Mumbai CSMT → Pune' },
   { from: 'NDLS', to: 'CNB', label: 'New Delhi → Kanpur Central' },
   { from: 'NDLS', to: 'LKO', label: 'New Delhi → Lucknow' },
-  { from: 'HWH', to: 'PURI', label: 'Howrah → Puri (Vande Bharat)' },
+  { from: 'HWH', to: 'PURI', label: 'Howrah → Puri' },
   { from: 'SBC', to: 'MAS', label: 'Bengaluru → Chennai Central' },
-  { from: 'NDLS', to: 'BSB', label: 'New Delhi → Varanasi (Vande Bharat)' }
+  { from: 'NDLS', to: 'BSB', label: 'New Delhi → Varanasi' }
 ];
 
 export const CLASS_LABELS: Record<string, { name: string; short: string; description: string }> = {

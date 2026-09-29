@@ -20,7 +20,7 @@ import {
   TrainSchedule,
   ServerRadarJob
 } from '../types';
-import { POPULAR_STATIONS, POPULAR_ROUTES } from '../data/trainData';
+import { POPULAR_STATIONS, POPULAR_ROUTES, CLASS_LABELS } from '../data/trainData';
 import { DatePickerCalendar, formatDateISO } from './DatePickerCalendar';
 import { TrainAvailabilityStrip } from './TrainAvailabilityStrip';
 import { ChartingCountdownWidget } from './ChartingCountdownWidget';
@@ -72,6 +72,7 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
   const toStationCode = toStation.code;
   const [journeyDate, setJourneyDate] = useState<string>(defaultJourneyDate);
   const [quota, setQuota] = useState<QuotaType>('GN');
+  const [selectedClassFilter, setSelectedClassFilter] = useState<string>('ALL');
   const [trainQuery, setTrainQuery] = useState<string>('');
   const [isLoadingTrains, setIsLoadingTrains] = useState<boolean>(true);
   const [trainsList, setTrainsList] = useState<TrainSchedule[]>([]);
@@ -94,13 +95,17 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
 
   // Filtered and Sorted Trains
   const filteredTrains = useMemo(() => {
-    return filterAndSortTrains(trainsList, {
+    let list = trainsList;
+    if (selectedClassFilter !== 'ALL') {
+      list = list.filter((t) => t.classes && t.classes.includes(selectedClassFilter as TrainClass));
+    }
+    return filterAndSortTrains(list, {
       selectedSlots,
       slotTarget,
       sortBy,
       searchQuery: trainQuery
     });
-  }, [trainsList, selectedSlots, slotTarget, sortBy, trainQuery]);
+  }, [trainsList, selectedSlots, slotTarget, sortBy, trainQuery, selectedClassFilter]);
 
   const handleManualSearch = async () => {
     setIsLoadingTrains(true);
@@ -171,7 +176,7 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
     setIsStartingRouteRadar(true);
     try {
       await PushNotificationService.enablePushNotifications();
-      const defaultCls = (trainsList[0]?.classes && trainsList[0].classes[0]) || 'CC';
+      const chosenClass = selectedClassFilter === 'ALL' ? 'ANY' : selectedClassFilter;
       await RadarApiService.createRadar({
         mode: 'ROUTE',
         fromCode: fromStation.code,
@@ -179,18 +184,18 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
         toCode: toStation.code,
         toName: toStation.name,
         journeyDate: journeyDate,
-        travelClass: defaultCls,
+        travelClass: chosenClass,
         quota: quota
       });
 
       // Immediate top-right screen pop-up confirmation
       triggerInAppNotification({
         title: `📡 Route Radar Active: ${fromStation.code} → ${toStation.code}`,
-        body: `Watching all ${trainsList.length || 'corridor'} trains for ${journeyDate}. Top-right display pop-ups will alert you the moment seats are found!`,
+        body: `Watching all ${trainsList.length || 'corridor'} trains for ${journeyDate} (${selectedClassFilter === 'ALL' ? 'All Classes' : selectedClassFilter}). Top-right display pop-ups will alert you the moment seats are found!`,
         fromCode: fromStation.code,
         toCode: toStation.code,
         journeyDate: journeyDate,
-        travelClass: defaultCls,
+        travelClass: chosenClass,
         quota: quota,
         type: 'RADAR_ACTIVE'
       });
@@ -206,7 +211,7 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
     }
   };
 
-  // Quick Corridor Selection
+  // Quick Common Route Selection
   const handleSelectRoute = (from: string, to: string) => {
     const fStn = getCachedStation(from) || POPULAR_STATIONS.find(s => s.code === from) || { code: from, name: `${from} Station`, city: from, state: '' };
     const tStn = getCachedStation(to) || POPULAR_STATIONS.find(s => s.code === to) || { code: to, name: `${to} Station`, city: to, state: '' };
@@ -337,20 +342,20 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
           Search Trains & Check Real-Time Availability
         </h1>
         <p className="text-slate-400 text-xs sm:text-sm max-w-lg mx-auto">
-          Explore real-time seat availability across all Indian Railways corridors. Watch for Current Booking berths that open immediately after chart preparation.
+          Explore real-time seat availability across Indian Railways. Watch for Current Booking berths that open immediately after chart preparation.
         </p>
       </div>
 
       {/* Primary Search Bar Box */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-xl shadow-slate-950/40 space-y-6">
         
-        {/* Quick Route Presets */}
+        {/* Common Routes */}
         <div>
           <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-            Popular Corridors
+            Common Routes
           </label>
           <div className="flex flex-wrap gap-2">
-            {POPULAR_ROUTES.slice(0, 5).map((r) => {
+            {POPULAR_ROUTES.slice(0, 6).map((r) => {
               const isSelected = fromStationCode === r.from && toStationCode === r.to;
               return (
                 <button
@@ -359,8 +364,8 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
                   onClick={() => handleSelectRoute(r.from, r.to)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-emerald-500 text-slate-950 font-bold'
-                      : 'bg-slate-950 border border-slate-800 text-slate-300 hover:border-slate-700'
+                      ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-500/20'
+                      : 'bg-slate-950 border border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
                   }`}
                 >
                   {r.label}
@@ -408,8 +413,8 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
 
         </div>
 
-        {/* Date & Quota Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+        {/* Date, Class & Quota Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
           
           <div>
             <DatePickerCalendar
@@ -417,6 +422,50 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
               onChange={(newDate) => setJourneyDate(newDate)}
               label="Journey Date"
             />
+          </div>
+
+          {/* Travel Class Selector */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-300">
+                Travel Class
+              </label>
+              {selectedClassFilter === 'ALL' ? (
+                <span className="text-[10px] font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-md">
+                  All Classes (Default)
+                </span>
+              ) : (
+                <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md font-mono">
+                  {selectedClassFilter} Selected
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <select
+                id="select-travel-class"
+                value={selectedClassFilter}
+                onChange={(e) => setSelectedClassFilter(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-750 rounded-xl pl-3.5 pr-10 py-3 text-sm text-white font-medium focus:border-emerald-500 focus:outline-none appearance-none cursor-pointer"
+              >
+                <option value="ALL">All Classes (Search & Radar All)</option>
+                <option value="3A">AC 3-Tier (3A)</option>
+                <option value="2A">AC 2-Tier (2A)</option>
+                <option value="1A">AC First Class (1A)</option>
+                <option value="3E">AC 3-Tier Economy (3E)</option>
+                <option value="CC">AC Chair Car (CC)</option>
+                <option value="EC">Executive Chair Car (EC)</option>
+                <option value="SL">Sleeper Class (SL)</option>
+                <option value="2S">Second Sitting (2S)</option>
+              </select>
+              <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                <ChevronDown className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              {selectedClassFilter === 'ALL'
+                ? 'Monitors availability across all AC, Chair Car & Sleeper coaches.'
+                : (CLASS_LABELS[selectedClassFilter]?.description || 'Filtered travel class')}
+            </p>
           </div>
 
           <div>
@@ -458,7 +507,6 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
               {quota === 'HP' && 'Reserved berths for Divyangjan concession certificate holders.'}
             </p>
           </div>
-
         </div>
 
         {/* Train Query & Explicit Search Action */}
@@ -506,7 +554,7 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-3 px-1">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-              <span>Trains on Corridor ({trainsList.length} Trains Found)</span>
+              <span>Available Trains ({trainsList.length} Trains Found)</span>
               {isLoadingTrains && <RefreshCw className="w-4 h-4 text-emerald-400 animate-spin" />}
             </h2>
             <p className="text-xs text-slate-400">
@@ -534,7 +582,7 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
               <span>
                 {activeRouteRadar
                   ? `Route Radar Active (${activeRouteRadar.monitoredTrains?.length || trainsList.length} Trains)`
-                  : `Watch Entire Route (${trainsList.length} Trains)`}
+                  : `Watch Entire Route (${trainsList.length} Trains · ${selectedClassFilter === 'ALL' ? 'All Classes' : selectedClassFilter})`}
               </span>
               <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] bg-black/30 text-white font-mono uppercase">
                 24/7 Radar
@@ -591,18 +639,31 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
         {trainsList.length > 0 && filteredTrains.length === 0 && (
           <div className="text-center py-10 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 space-y-3">
             <p className="text-sm font-semibold text-slate-300">
-              No trains found matching the selected {slotTarget} time category.
+              {selectedClassFilter !== 'ALL'
+                ? `No trains found offering travel class "${selectedClassFilter}" (${CLASS_LABELS[selectedClassFilter]?.name || selectedClassFilter}) for the selected time slot.`
+                : `No trains found matching the selected ${slotTarget} time category.`}
             </p>
             <p className="text-xs text-slate-500">
-              There are {trainsList.length} total trains available on this corridor.
+              There are {trainsList.length} total trains available on this route.
             </p>
-            <button
-              type="button"
-              onClick={handleSelectAllSlots}
-              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer transition-all inline-flex items-center space-x-1.5"
-            >
-              <span>View All {trainsList.length} Trains</span>
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              {selectedClassFilter !== 'ALL' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedClassFilter('ALL')}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer transition-all inline-flex items-center space-x-1.5"
+                >
+                  <span>Reset to All Classes</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleSelectAllSlots}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs cursor-pointer transition-all inline-flex items-center space-x-1.5"
+              >
+                <span>View All {trainsList.length} Trains</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -669,7 +730,13 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
                   fromCode={train.fromCode || fromStation.code}
                   toCode={train.toCode || toStation.code}
                   availableClasses={train.classes}
-                  selectedClass={trainSelectedClasses[train.number] || train.classes[0] || 'CC'}
+                  selectedClass={
+                    trainSelectedClasses[train.number] ||
+                    (selectedClassFilter !== 'ALL' && train.classes.includes(selectedClassFilter as TrainClass)
+                      ? (selectedClassFilter as TrainClass)
+                      : train.classes[0]) ||
+                    'CC'
+                  }
                   onClassChange={(newCls) => {
                     setTrainSelectedClasses((prev) => ({
                       ...prev,

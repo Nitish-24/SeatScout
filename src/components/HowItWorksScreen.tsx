@@ -190,24 +190,6 @@ export const HowItWorksScreen: React.FC<HowItWorksScreenProps> = ({ onStartWatch
                   </div>
                 </div>
               </div>
-
-              {/* Quick Route Buttons Cutout */}
-              <div className="space-y-1.5 pt-1">
-                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Or click any popular route with 1 tap:
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <span className="px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-semibold">
-                    Chandigarh → New Delhi
-                  </span>
-                  <span className="px-3 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold">
-                    Mumbai CSMT → Pune
-                  </span>
-                  <span className="px-3 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold">
-                    New Delhi → Lucknow
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* Easy Words Explanation */}

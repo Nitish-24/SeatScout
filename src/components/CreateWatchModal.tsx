@@ -28,7 +28,7 @@ import {
 } from '../types';
 import { 
   POPULAR_STATIONS, 
-  POPULAR_ROUTES, 
+  POPULAR_ROUTES,
   TRAIN_DATABASE, 
   CLASS_LABELS, 
   QUOTA_DETAILS
@@ -63,7 +63,7 @@ export const CreateWatchModal: React.FC<CreateWatchModalProps> = ({
   const [toStation, setToStation] = useState<Station>(defaultTo);
   const [journeyDate, setJourneyDate] = useState<string>(defaultDate);
   const [selectedTrainNumber, setSelectedTrainNumber] = useState<string>('12012'); // Kalka Shatabdi
-  const [selectedClass, setSelectedClass] = useState<TrainClass>('3A');
+  const [selectedClass, setSelectedClass] = useState<TrainClass | 'ANY'>('ANY');
   const [selectedQuota, setSelectedQuota] = useState<QuotaType>('GN');
   
   // Passenger details for smart quota check
@@ -223,22 +223,22 @@ export const CreateWatchModal: React.FC<CreateWatchModalProps> = ({
         {/* Modal Body / Form */}
         <form onSubmit={handleLaunchWatch} className="p-5 sm:p-6 space-y-6 max-h-[80vh] overflow-y-auto">
           
-          {/* Quick Route Presets */}
+          {/* Quick Common Routes */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Popular Current Booking Corridors
+              Common Routes
             </label>
             <div className="flex flex-wrap gap-2">
-              {POPULAR_ROUTES.slice(0, 4).map((route) => {
+              {POPULAR_ROUTES.slice(0, 5).map((route) => {
                 const isActive = fromStation.code === route.from && toStation.code === route.to;
                 return (
                   <button
                     key={`${route.from}-${route.to}`}
                     type="button"
                     onClick={() => handleSelectRoutePreset(route.from, route.to)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                       isActive
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-sm'
+                        ? 'bg-blue-600 text-white font-bold shadow-sm'
                         : 'bg-slate-950/70 text-slate-400 hover:text-slate-200 border border-slate-800'
                     }`}
                   >
@@ -358,27 +358,33 @@ export const CreateWatchModal: React.FC<CreateWatchModalProps> = ({
 
           {/* Travel Class Selection */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Class of Travel
-            </label>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-              {(['3A', '2A', 'CC', '1A', '3E', 'SL'] as TrainClass[]).map((cls) => {
-                const info = CLASS_LABELS[cls];
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Class of Travel
+              </label>
+              <span className="text-[10px] font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-md">
+                {selectedClass === 'ANY' ? 'All Classes Monitored' : `${selectedClass} Selected`}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2">
+              {(['ANY', '3A', '2A', 'CC', '1A', '3E', 'SL', 'EC', '2S'] as (TrainClass | 'ANY')[]).map((cls) => {
                 const isSelected = selectedClass === cls;
+                const labelText = cls === 'ANY' ? 'ALL' : cls;
+                const subText = cls === 'ANY' ? 'All Classes' : (cls === 'CC' ? 'Chair' : cls === '3A' ? '3-Tier' : cls);
                 return (
                   <button
                     key={cls}
                     type="button"
                     id={`select-class-${cls}`}
                     onClick={() => setSelectedClass(cls)}
-                    className={`p-2.5 rounded-xl border text-center transition-all ${
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold shadow-sm'
+                        ? 'bg-blue-600 border-blue-500 text-white font-bold shadow-sm'
                         : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700'
                     }`}
                   >
-                    <span className="block text-sm">{info.short}</span>
-                    <span className="block text-[10px] text-slate-400 truncate">{cls === 'CC' ? 'Chair' : cls === '3A' ? '3-Tier' : cls}</span>
+                    <span className="block text-sm font-bold">{labelText}</span>
+                    <span className="block text-[10px] text-slate-400 truncate">{subText}</span>
                   </button>
                 );
               })}
