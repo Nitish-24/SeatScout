@@ -1,7 +1,7 @@
 # SeatScout — Indian Railways Current Booking (`CURR_AVBL`) Radar
 
 <p align="center">
-  <img src="public/images/guide_radar_screen.jpg" alt="SeatScout 24/7 Radar Dashboard" width="100%" style="border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);" />
+  <img src="./public/images/guide_radar_screen.jpg" alt="SeatScout 24/7 Radar Dashboard" width="100%" style="border-radius: 14px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);" />
 </p>
 
 <p align="center">
@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="#-about-this-project"><img src="https://img.shields.io/badge/Project-SeatScout-blue?style=for-the-badge&logo=compass" alt="About SeatScout" /></a>
-  <a href="#-visual-step-by-step-walkthrough"><img src="https://img.shields.io/badge/Visual_Walkthrough-Screenshots-10b981?style=for-the-badge&logo=camera" alt="Screenshots" /></a>
+  <a href="#-application-flow--visual-walkthrough-with-screenshots"><img src="https://img.shields.io/badge/Visual_Walkthrough-App_Screenshots-10b981?style=for-the-badge&logo=camera" alt="Screenshots" /></a>
   <a href="#-top-right-screen-alerts--desktop-notifications"><img src="https://img.shields.io/badge/Screen_Alerts-Top_Right_Popup-f59e0b?style=for-the-badge&logo=bell" alt="Screen Alerts" /></a>
   <a href="#-meta-whatsapp-cloud-api-integration"><img src="https://img.shields.io/badge/Meta_WhatsApp-Cloud_API-25d366?style=for-the-badge&logo=whatsapp" alt="Meta WhatsApp" /></a>
   <a href="#-tech-stack"><img src="https://img.shields.io/badge/React_19-Tailwind_v4-38bdf8?style=for-the-badge&logo=react" alt="React 19" /></a>
@@ -21,24 +21,24 @@
 
 ## 📌 About This Project
 
-Every single day, millions of passengers across India struggle with **Waitlisted (WL)** and **RAC** train tickets. When regular booking exhausts, many rush for emergency **Tatkal** at 10:00 AM / 11:00 AM, only to face overloaded IRCTC servers, gateway timeouts, non-refundable ticket losses, and surging surge-pricing.
+Every single day, millions of travelers across India encounter **Waitlisted (WL)**, **RAC**, or **Regret** status when booking train tickets. When regular quota seats are exhausted, travelers often attempt emergency **Tatkal** bookings at 10:00 AM / 11:00 AM, only to face server queues, payment timeouts, and non-refundable ticket losses.
 
-**However, there is an official, legitimate railway mechanism that most travelers miss:** **Current Booking (`CURR_AVBL`)**.
+**However, there is an official, legitimate Indian Railways mechanism that most passengers miss entirely:** **Current Booking (`CURR_AVBL`)**.
 
-### The Problem
-- **4 Hours Before Train Departure** (or 8:00 PM the previous evening for morning departures), Indian Railways Passenger Reservation System (PRS) freezes waitlists and prepares the **First Reservation Chart**.
-- **Unbooked Quotas Are Pooled**: Unused berths reserved for VIPs, Senior Citizens, Defence personnel, Foreign Tourists, Railway Officials, and Emergency Concessions are unlocked and pooled together into the general public pool.
-- **Normal Base Fares**: These berths are sold at **standard base fare** (often even with a 10% discount) with **100% confirmed coaches and berth assignments**!
-- **The Catch**: These vacant seats disappear within seconds. Travelers cannot sit and manually refresh the IRCTC website every 15 seconds.
+### The Opportunity: What is `CURR_AVBL`?
+- **4 Hours Before Departure**: Indian Railways Passenger Reservation System (PRS) freezes waitlists and prepares the **First Reservation Chart** (or at 8:00 PM the previous evening for morning departures).
+- **Pooled Berths**: Unbooked berths reserved for VIPs, Senior Citizens, Defence personnel, Foreign Tourists, Railway Officials, and Emergency Concessions are unlocked and pooled into the general public pool.
+- **Normal Base Fares**: These berths are sold at **standard base fare** (often with a 10% discount) with **100% confirmed coaches and berth assignments**!
+- **The Challenge**: These vacant berths disappear within seconds. Travelers cannot sit and manually refresh the IRCTC website every 15 seconds.
 
 ### The Solution: SeatScout
 **SeatScout is an automated, real-time background radar that eliminates manual refreshing entirely**:
-1. You select a specific train or an entire travel corridor (e.g. *Chandigarh → New Delhi*).
+1. You select a specific train or an entire travel corridor (e.g., *Chandigarh → New Delhi*).
 2. SeatScout launches an independent **24/7 server-side monitoring daemon** that continuously queries PRS seat pools with adaptive frequency scaling.
 3. The instant berths release, SeatScout triggers:
    - An **auditory chime** synthesized in real-time via the Web Audio API.
    - A **radiant top-right screen pop-up card** on your display with train details, berth count, and booking links.
-   - An **OS-level desktop notification** that stays pinned on your screen even if you are working on other browser tabs or applications.
+   - An **OS-level desktop notification** that stays pinned on your screen even if you are working on other browser tabs or desktop applications.
    - A **flashing browser tab badge** (`🚨 SEATS FOUND! 12012 Shatabdi` ↔ `SeatScout`).
    - Official **Meta WhatsApp Cloud API** messages and SMS OTP/berth alerts directly to your mobile phone.
 4. A direct **1-click deep link launches the official IRCTC portal** pre-filled with your journey details so you can secure your ticket before anyone else.
@@ -48,9 +48,9 @@ Every single day, millions of passengers across India struggle with **Waitlisted
 ## 📖 Table of Contents
 1. [About This Project](#-about-this-project)
 2. [The 4-Hour Charting & Seat Release Timeline](#-the-4-hour-charting--seat-release-timeline)
-3. [Visual Step-by-Step Walkthrough](#-visual-step-by-step-walkthrough)
-   - [Step 1: Search Trains & Live Availability](#step-1-search-trains--check-live-availability)
-   - [Step 2: 24/7 Radar Monitoring Dashboard](#step-2-activate-247-radar-monitoring)
+3. [Application Flow & Visual Walkthrough (With Screenshots)](#-application-flow--visual-walkthrough-with-screenshots)
+   - [Step 1: Search Trains & Check Live Availability](#step-1-search-trains--check-live-availability)
+   - [Step 2: Activate 24/7 Radar Monitoring](#step-2-activate-247-radar-monitoring)
    - [Step 3: Radiant Top-Right Pop-up & Desktop Alert](#step-3-radiant-top-right-screen-alerts--desktop-notifications)
    - [Step 4: Meta WhatsApp Cloud API & SMS Delivery](#step-4-meta-whatsapp--mobile-sms-alerts)
    - [Step 5: Interactive 4-Step In-App Guide](#step-5-interactive-4-step-guide)
@@ -67,7 +67,7 @@ Every single day, millions of passengers across India struggle with **Waitlisted
 ## ⏱️ The 4-Hour Charting & Seat Release Timeline
 
 <p align="center">
-  <img src="public/images/guide_charting_timeline.jpg" alt="IRCTC Current Booking Timeline" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
+  <img src="./public/images/guide_charting_timeline.jpg" alt="IRCTC Current Booking Timeline" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
 </p>
 
 | Stage | Timing | Indian Railways Action | SeatScout Radar Action |
@@ -78,7 +78,7 @@ Every single day, millions of passengers across India struggle with **Waitlisted
 
 ---
 
-## 📸 Visual Step-by-Step Walkthrough
+## 📸 Application Flow & Visual Walkthrough (With Screenshots)
 
 Follow the exact flow of the application from station search to instant confirmed booking:
 
@@ -86,7 +86,7 @@ Follow the exact flow of the application from station search to instant confirme
 
 ### Step 1: Search Trains & Check Live Availability
 <p align="center">
-  <img src="public/images/search_trains_screen.jpg" alt="SeatScout Train Search Interface" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
+  <img src="./public/images/search_trains_screen.jpg" alt="SeatScout Train Search Interface" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
 </p>
 
 - **Station Autocomplete across 9,000+ Stations**: Type any station name or IRCTC code (e.g., `CDG` for *Chandigarh Junction*, `NDLS` for *New Delhi*).
@@ -99,7 +99,7 @@ Follow the exact flow of the application from station search to instant confirme
 
 ### Step 2: Activate 24/7 Radar Monitoring
 <p align="center">
-  <img src="public/images/guide_radar_screen.jpg" alt="SeatScout 24/7 Radar Dashboard" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
+  <img src="./public/images/guide_radar_screen.jpg" alt="SeatScout 24/7 Radar Dashboard" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
 </p>
 
 - **Server-Side Daemon**: The radar runs in the background on the server (`data/radars.json`). You can safely close your browser or turn off your computer — monitoring continues 24/7.
@@ -115,7 +115,7 @@ Follow the exact flow of the application from station search to instant confirme
 
 ### Step 3: Radiant Top-Right Screen Alerts & Desktop Notifications
 <p align="center">
-  <img src="public/images/seat_alert_popup.jpg" alt="SeatScout Top-Right Screen Alert Pop-up" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
+  <img src="./public/images/seat_alert_popup.jpg" alt="SeatScout Top-Right Screen Alert Pop-up" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
 </p>
 
 When seats unlock, SeatScout triggers a **multi-layered notification cascade**:
@@ -143,7 +143,7 @@ When seats unlock, SeatScout triggers a **multi-layered notification cascade**:
 
 ### Step 4: Meta WhatsApp & Mobile SMS Alerts
 <p align="center">
-  <img src="public/images/guide_whatsapp_alert.jpg" alt="WhatsApp & Mobile SMS Notifications" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
+  <img src="./public/images/guide_whatsapp_alert.jpg" alt="WhatsApp & Mobile SMS Notifications" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
 </p>
 
 - **Meta WhatsApp Business Cloud API**: Delivers direct WhatsApp messages using approved non-promotional utility templates:
@@ -158,14 +158,14 @@ When seats unlock, SeatScout triggers a **multi-layered notification cascade**:
 
 ### Step 5: Interactive 4-Step Guide
 <p align="center">
-  <img src="public/images/guide_walkthrough_screen.jpg" alt="SeatScout Interactive Guide Section" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
+  <img src="./public/images/guide_walkthrough_screen.jpg" alt="SeatScout Interactive Guide Section" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
 </p>
 
-- The app includes an interactive onboarding walkthrough accessible from the navigation bar.
+- Accessible directly from the top navigation bar.
 - Guides first-time travelers through:
-  - **1. Stations**: How to choose origin and destination.
-  - **2. Date & Class**: Picking journey dates around charting hours.
-  - **3. Start Radar**: Turning on 24/7 background tracking.
+  - **1. Stations**: How to choose origin and destination with station autocomplete.
+  - **2. Date & Class**: Picking journey dates around charting hours and choosing coach tiers.
+  - **3. Start Radar**: Turning on 24/7 background tracking on trains or entire routes.
   - **4. Book Ticket**: Booking confirmed berths the second they release.
 - Includes clear, jargon-free explanations for common questions.
 
