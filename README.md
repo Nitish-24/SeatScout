@@ -1,395 +1,1198 @@
-# SeatScout — Indian Railways Current Booking (`CURR_AVBL`) Radar
+# 🚆 SeatScout
 
-<p align="center">
-  <img src="./public/images/guide_radar_screen.jpg" alt="SeatScout 24/7 Radar Dashboard" width="100%" style="border-radius: 14px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);" />
-</p>
+**SeatScout** is a train seat availability tracking and monitoring application built to make Indian Railway seat availability easier to track.
 
-<p align="center">
-  <strong>An automated, real-time 24/7 PRS berth radar and last-minute confirmed seat monitoring system for Indian Railways passengers.</strong>
-</p>
+It allows users to search train availability and monitor routes for changes in availability, with background monitoring and notifications designed around the `CURR_AVBL` availability information.
 
-<p align="center">
-  <a href="#-about-this-project"><img src="https://img.shields.io/badge/Project-SeatScout-blue?style=for-the-badge&logo=compass" alt="About SeatScout" /></a>
-  <a href="#-application-flow--visual-walkthrough-with-screenshots"><img src="https://img.shields.io/badge/Visual_Walkthrough-App_Screenshots-10b981?style=for-the-badge&logo=camera" alt="Screenshots" /></a>
-  <a href="#-top-right-screen-alerts--desktop-notifications"><img src="https://img.shields.io/badge/Screen_Alerts-Top_Right_Popup-f59e0b?style=for-the-badge&logo=bell" alt="Screen Alerts" /></a>
-  <a href="#-meta-whatsapp-cloud-api-integration"><img src="https://img.shields.io/badge/Meta_WhatsApp-Cloud_API-25d366?style=for-the-badge&logo=whatsapp" alt="Meta WhatsApp" /></a>
-  <a href="#-tech-stack"><img src="https://img.shields.io/badge/React_19-Tailwind_v4-38bdf8?style=for-the-badge&logo=react" alt="React 19" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-emerald?style=for-the-badge" alt="License" /></a>
-</p>
+🌐 **Live Website:** http://seatscout.duckdns.org/
 
 ---
 
-## 📌 About This Project
+## 📌 Table of Contents
 
-Every single day, millions of travelers across India encounter **Waitlisted (WL)**, **RAC**, or **Regret** status when booking train tickets. When regular quota seats are exhausted, travelers often attempt emergency **Tatkal** bookings at 10:00 AM / 11:00 AM, only to face server queues, payment timeouts, and non-refundable ticket losses.
-
-**However, there is an official, legitimate Indian Railways mechanism that most passengers miss entirely:** **Current Booking (`CURR_AVBL`)**.
-
-### The Opportunity: What is `CURR_AVBL`?
-- **4 Hours Before Departure**: Indian Railways Passenger Reservation System (PRS) freezes waitlists and prepares the **First Reservation Chart** (or at 8:00 PM the previous evening for morning departures).
-- **Pooled Berths**: Unbooked berths reserved for VIPs, Senior Citizens, Defence personnel, Foreign Tourists, Railway Officials, and Emergency Concessions are unlocked and pooled into the general public pool.
-- **Normal Base Fares**: These berths are sold at **standard base fare** (often with a 10% discount) with **100% confirmed coaches and berth assignments**!
-- **The Challenge**: These vacant berths disappear within seconds. Travelers cannot sit and manually refresh the IRCTC website every 15 seconds.
-
-### The Solution: SeatScout
-**SeatScout is an automated, real-time background radar that eliminates manual refreshing entirely**:
-1. You select a specific train or an entire travel corridor (e.g., *Chandigarh → New Delhi*).
-2. SeatScout launches an independent **24/7 server-side monitoring daemon** that continuously queries PRS seat pools with adaptive frequency scaling.
-3. The instant berths release, SeatScout triggers:
-   - An **auditory chime** synthesized in real-time via the Web Audio API.
-   - A **radiant top-right screen pop-up card** on your display with train details, berth count, and booking links.
-   - An **OS-level desktop notification** that stays pinned on your screen even if you are working on other browser tabs or desktop applications.
-   - A **flashing browser tab badge** (`🚨 SEATS FOUND! 12012 Shatabdi` ↔ `SeatScout`).
-   - Official **Meta WhatsApp Cloud API** messages and SMS OTP/berth alerts directly to your mobile phone.
-4. A direct **1-click deep link launches the official IRCTC portal** pre-filled with your journey details so you can secure your ticket before anyone else.
-
----
-
-## 📖 Table of Contents
-1. [About This Project](#-about-this-project)
-2. [The 4-Hour Charting & Seat Release Timeline](#-the-4-hour-charting--seat-release-timeline)
-3. [Application Flow & Visual Walkthrough (With Screenshots)](#-application-flow--visual-walkthrough-with-screenshots)
-   - [Step 1: Search Trains & Check Live Availability](#step-1-search-trains--check-live-availability)
-   - [Step 2: Activate 24/7 Radar Monitoring](#step-2-activate-247-radar-monitoring)
-   - [Step 3: Radiant Top-Right Pop-up & Desktop Alert](#step-3-radiant-top-right-screen-alerts--desktop-notifications)
-   - [Step 4: Meta WhatsApp Cloud API & SMS Delivery](#step-4-meta-whatsapp--mobile-sms-alerts)
-   - [Step 5: Interactive 4-Step In-App Guide](#step-5-interactive-4-step-guide)
-4. [System Architecture](#-system-architecture)
-5. [Tech Stack](#-tech-stack)
-6. [Getting Started (Local Development)](#-getting-started-local-development)
-7. [Environment Configuration (.env Guide)](#-environment-configuration-env-guide)
-8. [Automated CI/CD & EC2 Deployment](#-automated-cicd--ec2-deployment)
-9. [API Reference](#-api-reference)
-10. [Frequently Asked Questions (FAQ)](#-frequently-asked-questions-faq)
+* [Overview](#-overview)
+* [Key Features](#-key-features)
+* [How SeatScout Works](#-how-seatscout-works)
+* [Architecture](#-architecture)
+* [Application Flow](#-application-flow)
+* [Radar Monitoring](#-radar-monitoring)
+* [Railway Station System](#-railway-station-system)
+* [Technology Stack](#-technology-stack)
+* [Project Structure](#-project-structure)
+* [Deployment Architecture](#-deployment-architecture)
+* [EC2 Infrastructure](#-ec2-infrastructure)
+* [Nginx Reverse Proxy](#-nginx-reverse-proxy)
+* [Systemd Services](#-systemd-services)
+* [DuckDNS IP Mapping](#-duckdns-ip-mapping)
+* [CI/CD with GitHub Actions](#-cicd-with-github-actions)
+* [Git Workflow](#-git-workflow)
+* [Running Locally](#-running-locally)
+* [Environment Variables](#-environment-variables)
+* [Deployment Flow](#-deployment-flow)
+* [Monitoring and Logs](#-monitoring-and-logs)
+* [Future Improvements](#-future-improvements)
 
 ---
 
-## ⏱️ The 4-Hour Charting & Seat Release Timeline
+# 🚀 Overview
 
-<p align="center">
-  <img src="./public/images/guide_charting_timeline.jpg" alt="IRCTC Current Booking Timeline" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
-</p>
+SeatScout was created as a practical **DevOps + full-stack deployment project**.
 
-| Stage | Timing | Indian Railways Action | SeatScout Radar Action |
-|---|---|---|---|
-| **Stage 1: Pre-Charting** | Days before up to 4 hrs before departure | Regular waitlist & Tatkal bookings open; high-demand trains show WL or Regret. | Register a single train or entire corridor on the SeatScout 24/7 Radar. |
-| **Stage 2: Chart Preparation** | Exactly 4 hrs before departure (or 8:00 PM previous night for morning departures) | PRS finalizes the 1st reservation chart. Leftover quotas (VIP, Defence, Senior Citizen, Emergency) are pooled. | Radar escalates to high-frequency polling (every 10s–15s) as charting nears. |
-| **Stage 3: Current Booking Open** | Chart prep until 30 min before departure | Vacant berths release as `CURR_AVBL` at standard fare with confirmed coach and berth numbers. | **Instant Multi-Channel Alert**: Top-right screen pop-up, audio chime, desktop notification, WhatsApp & SMS alert! |
+The project is not only about building a web application. It also demonstrates how an application can be:
 
----
+1. Developed locally
+2. Stored in GitHub
+3. Built and packaged
+4. Deployed to an AWS EC2 instance
+5. Served through Nginx
+6. Managed using systemd
+7. Exposed through a domain using DuckDNS
+8. Automatically deployed using GitHub Actions
+9. Continuously monitored through background workers
 
-## 📸 Application Flow & Visual Walkthrough (With Screenshots)
-
-Follow the exact flow of the application from station search to instant confirmed booking:
-
----
-
-### Step 1: Search Trains & Check Live Availability
-<p align="center">
-  <img src="./public/images/search_trains_screen.jpg" alt="SeatScout Train Search Interface" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
-</p>
-
-- **Station Autocomplete across 9,000+ Stations**: Type any station name or IRCTC code (e.g., `CDG` for *Chandigarh Junction*, `NDLS` for *New Delhi*).
-- **Popular Corridor Quick-Buttons**: Instant 1-tap presets for busy routes like *Chandigarh → New Delhi*, *Mumbai CSMT → Pune*, *New Delhi → Lucknow*.
-- **Journey Calendar & Quotas**: Full date picker with quota selector (`General (GN)`, `Tatkal (TQ)`, `Senior Citizen (SS)`, `Ladies (LD)`, or `Divyangjan (HP)`).
-- **Live Timetable & Availability Badges**: Real-time departure/arrival times, travel duration, and class tags (`CC`, `EC`, `3A`, `2A`, `1A`, `SL`).
-- **Watch Entire Route Button**: With a single click, launch a corridor-wide radar that monitors **all trains** running on the route on your travel date.
+The application runs as a Node.js server behind Nginx on an **Amazon Linux 2023 EC2 instance**.
 
 ---
 
-### Step 2: Activate 24/7 Radar Monitoring
-<p align="center">
-  <img src="./public/images/guide_radar_screen.jpg" alt="SeatScout 24/7 Radar Dashboard" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
-</p>
+# ✨ Key Features
 
-- **Server-Side Daemon**: The radar runs in the background on the server (`data/radars.json`). You can safely close your browser or turn off your computer — monitoring continues 24/7.
-- **Adaptive Polling Intervals**:
-  - `> 72 hours`: Relaxed polling.
-  - `24 – 72 hours`: Normal polling.
-  - `6 – 24 hours`: Urgent polling.
-  - `< 6 hours` (Charting Window): **Critical high-speed polling** every 10–15 seconds to catch seats the second they release.
-- **Circuit Breaker & Exponential Backoff**: Resilient gateway protection with automatic retry backoff during upstream PRS maintenance.
-- **Radar Controls**: Pause, Resume, Stop, and Force-Scan actions on any active radar job.
+## 🎫 Train Seat Availability
 
----
+SeatScout focuses on train seat availability and uses the current availability information (`CURR_AVBL`) to help users understand whether seats are available for a selected journey.
 
-### Step 3: Radiant Top-Right Screen Alerts & Desktop Notifications
-<p align="center">
-  <img src="./public/images/seat_alert_popup.jpg" alt="SeatScout Top-Right Screen Alert Pop-up" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
-</p>
+Users can provide journey information such as:
 
-When seats unlock, SeatScout triggers a **multi-layered notification cascade**:
-
-1. **Top-Right Screen Pop-Up (`InAppNotificationToast.tsx`)**:
-   - Fixed at `top-4 right-4 z-[99999]`, floating above all modals, dialogs, and screens.
-   - Radiant high-contrast card with an animated glowing green border and pulsing beacon.
-   - Shows the train name, route corridor, class, and confirmed berth count (e.g. `CURR_AVBL: 4 Confirmed Berths Available!`).
-   - One-click **"⚡ Book on IRCTC"** button to open the booking page immediately.
-   - **"🎯 View Radar"** button to jump directly to the radar dashboard and highlight the train.
-   - **"🔊 Replay Sound"** button to re-trigger the bell chime.
-   - Hover-aware progress bar: stays visible for 20 seconds and **automatically pauses whenever you hover your mouse over it**.
-
-2. **OS Desktop System Notifications (`sendDesktopNotification`)**:
-   - Dispatches system notifications via `ServiceWorkerRegistration.showNotification()` with `requireInteraction: true`.
-   - **Stays pinned on your screen** in the top-right corner of your desktop/laptop display even when you are reading emails, working in another browser tab, or using another application.
-
-3. **Flashing Browser Tab Indicator (`startTabAlertBadge`)**:
-   - The browser tab title visibly alternates (`🚨 SEATS FOUND! 12012 Shatabdi` ↔ `⚡ SeatScout`), ensuring the tab stands out instantly among dozens of open tabs.
-
-4. **Test Pop-up Alert**:
-   - Click the **"Test Pop-up Alert"** button on the Radar Dashboard at any time to verify the top-right card, sound chime, and desktop notification.
+* Source station
+* Destination station
+* Train
+* Travel date
+* Passenger/availability requirements
 
 ---
 
-### Step 4: Meta WhatsApp & Mobile SMS Alerts
-<p align="center">
-  <img src="./public/images/guide_whatsapp_alert.jpg" alt="WhatsApp & Mobile SMS Notifications" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
-</p>
+## 📡 Radar
 
-- **Meta WhatsApp Business Cloud API**: Delivers direct WhatsApp messages using approved non-promotional utility templates:
-  ```text
-  Your verification code is: *482019*. Valid for 5 minutes. Do not share this code with anyone.
-  ```
-- **Instant Mobile Alert Message**: The moment berths appear, you receive a direct WhatsApp ping with train number, journey date, travel class, and available seat count.
-- **SMS Gateway Integration**: Built-in support for **Fast2SMS** (India DLT/OTP route) and **Twilio** for global SMS delivery.
-- **Resilient Fallbacks**: If WhatsApp tokens are misconfigured or expire, SeatScout provides an on-screen OTP fallback with an auto-fill button and direct `wa.me` click-to-chat links.
+The **Radar** feature is designed for continuous monitoring.
 
----
+Instead of manually checking train availability repeatedly, a user can create a monitoring requirement and SeatScout's background worker can periodically check the required route.
 
-### Step 5: Interactive 4-Step Guide
-<p align="center">
-  <img src="./public/images/guide_walkthrough_screen.jpg" alt="SeatScout Interactive Guide Section" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
-</p>
+Conceptually:
 
-- Accessible directly from the top navigation bar.
-- Guides first-time travelers through:
-  - **1. Stations**: How to choose origin and destination with station autocomplete.
-  - **2. Date & Class**: Picking journey dates around charting hours and choosing coach tiers.
-  - **3. Start Radar**: Turning on 24/7 background tracking on trains or entire routes.
-  - **4. Book Ticket**: Booking confirmed berths the second they release.
-- Includes clear, jargon-free explanations for common questions.
-
----
-
-## 🏗️ System Architecture
-
+```text
+User creates Radar
+        ↓
+Radar is stored
+        ↓
+Background monitoring worker
+        ↓
+Availability checked periodically
+        ↓
+Availability changes
+        ↓
+Notification / update
 ```
-+-----------------------------------------------------------------------------------+
-|                                  USER BROWSER / CLIENT                             |
-|  - React 19 Frontend (Vite)                                                       |
-|  - In-App Top-Right Toast Card (InAppNotificationToast.tsx) [z-index: 99999]      |
-|  - Web Audio API Sound Synthesizer (Pure Sine Chime Melodies)                     |
-|  - Service Worker (public/sw.js) for Web Push & Desktop Notifications             |
-|  - Flashing Tab Title Alert Badge (startTabAlertBadge)                            |
-+------------------------------------------+----------------------------------------+
-                                           |
-                                 REST API & Web Push
-                                           |
-+------------------------------------------v----------------------------------------+
-|                               EXPRESS BACKEND SERVER                              |
-|  - server.ts: HTTP Server & Vite Middleware                                       |
-|  - radarRouter.ts: Radar Management & VAPID Endpoints                             |
-|  - radarScheduler.ts: 24/7 Background Seat Worker (Adaptive Polling)              |
-|  - radarStore.ts: Persistent JSON Storage (radars.json & subscriptions)           |
-|  - pushService.ts: Web Push Engine with Self-Healing VAPID Keys                   |
-|  - metaWhatsappService.ts: Meta Cloud API Integration                             |
-|  - smsGatewayService.ts: Fast2SMS & Twilio SMS Dispatch                           |
-|  - emailNotificationService.ts: Nodemailer SMTP Dossiers                          |
-|  - realIrctcService.ts: PRS Upstream Gateway with Circuit Breakers                 |
-+------------------------------------------+----------------------------------------+
-                                           |
-                    External APIs / Notification Gateways
-                                           |
-       +--------------------+--------------+---------------+--------------------+
-       |                    |                              |                    |
-+------v-----+       +------v------+                +------v------+      +------v-----+
-|  Meta WA   |       |   Fast2SMS  |                |  Web Push   |      | Google AI  |
-|  Cloud API |       |  & Twilio   |                |  Endpoints  |      |   Gemini   |
-+------------+       +-------------+                +-------------+      +------------+
+
+This turns SeatScout from a simple search application into a **monitoring system**.
+
+---
+
+## 🔔 Notifications
+
+The monitoring system is designed to notify users when monitored seat availability changes.
+
+Example:
+
+```text
+No Seat Available
+       ↓
+Radar continues monitoring
+       ↓
+Seat becomes available
+       ↓
+Availability detected
+       ↓
+Notification sent
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## 👴 Senior Citizen / Lower Berth Quota Support
 
-- **Frontend**:
-  - **React 19** (Functional components, hooks, error boundaries)
-  - **Tailwind CSS v4** (Modern utility-first styling with `@import "tailwindcss";`)
-  - **Lucide React** (Clean, consistent iconography)
-  - **Web Audio API** (Four-note melodic sine chime synthesizer: C5 → E5 → G5 → C6)
-  - **Canvas Confetti & Motion** (Celebration animations on seat discovery)
-- **Backend**:
-  - **Node.js & Express** (Modular REST API routing)
-  - **`tsx`** (Modern TypeScript execution engine)
-  - **`web-push`** (W3C standard push protocol with Base64URL VAPID validation)
-  - **`nodemailer`** (SMTP email delivery for detailed berth dossiers)
-  - **`esbuild`** (High-speed production server bundling into `dist/server.cjs`)
-- **AI & Data Intelligence**:
-  - **Google Gemini API (`@google/genai`)**: Predicts charting times, analyzes confirmation chances, and recommends Tatkal vs. Current Booking strategies.
-- **Data Feeds & Gateways**:
-  - Live Indian Railways PRS & CRIS timetable data
-  - Meta WhatsApp Business Graph API v20.0
-  - Fast2SMS & Twilio SMS gateways
+SeatScout also considers railway quota-related availability, including support around:
+
+* Senior Citizen requirements
+* Lower berth requirements
+* General availability
+
+The application distinguishes between relevant quota/availability information instead of treating every availability result as identical.
 
 ---
 
-## ⚡ Getting Started (Local Development)
+## 🚉 Indian Railway Station Search
 
-### 1. Clone the Repository
+SeatScout contains an in-memory station index containing approximately:
+
+**8,967 Indian Railway stations**
+
+This allows station-related operations to be handled efficiently without repeatedly rebuilding the station index for every request.
+
+Startup log:
+
+```text
+[StationService] Successfully loaded all 8967 Indian Railway stations into in-memory index.
+```
+
+---
+
+## ⚙️ 24/7 Background Monitoring Worker
+
+SeatScout includes a background Radar scheduler.
+
+The production server starts the monitoring worker automatically:
+
+```text
+[RadarScheduler] Started 24/7 background seat monitoring worker
+```
+
+This means the monitoring process does not depend on a user keeping the browser open.
+
+---
+
+# 🧠 How SeatScout Works
+
+At a high level:
+
+```text
+                 ┌─────────────────┐
+                 │      User       │
+                 └────────┬────────┘
+                          │
+                          ▼
+                 ┌─────────────────┐
+                 │ SeatScout Web UI│
+                 └────────┬────────┘
+                          │
+                          ▼
+                 ┌─────────────────┐
+                 │  Nginx / HTTPS  │
+                 └────────┬────────┘
+                          │
+                          ▼
+                 ┌─────────────────┐
+                 │  Node.js Server │
+                 │    Port 3000    │
+                 └────────┬────────┘
+                          │
+             ┌────────────┴────────────┐
+             │                         │
+             ▼                         ▼
+      ┌───────────────┐       ┌────────────────┐
+      │ Seat / Route  │       │ Radar Scheduler│
+      │    Services   │       │ Background Job │
+      └───────────────┘       └───────┬────────┘
+                                      │
+                                      ▼
+                              Availability Checks
+                                      │
+                                      ▼
+                                  Notifications
+```
+
+---
+
+# 🏗️ Architecture
+
+## Production Architecture
+
+```text
+                         INTERNET
+                            │
+                            ▼
+                 ┌───────────────────────┐
+                 │ seatscout.duckdns.org │
+                 └───────────┬───────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │      Nginx      │
+                    │ Reverse Proxy   │
+                    └────────┬────────┘
+                             │
+                             │ localhost:3000
+                             ▼
+                    ┌─────────────────┐
+                    │    Node.js      │
+                    │  SeatScout App  │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┴──────────────┐
+              │                             │
+              ▼                             ▼
+      ┌───────────────┐             ┌─────────────────┐
+      │ Application   │             │ Radar Scheduler │
+      │   Services    │             │ Background      │
+      └───────────────┘             │ Monitoring      │
+                                    └─────────────────┘
+```
+
+---
+
+# 🔄 Application Flow
+
+A typical request follows this path:
+
+```text
+Browser
+   │
+   ▼
+DuckDNS Domain
+   │
+   ▼
+Nginx
+   │
+   ▼
+Node.js :3000
+   │
+   ▼
+SeatScout Application
+   │
+   ├── Station Service
+   ├── Availability Logic
+   ├── Radar Service
+   └── Notification Logic
+```
+
+Nginx acts as the public-facing entry point while the Node.js application runs internally on port `3000`.
+
+---
+
+# 📡 Radar Monitoring
+
+Radar is one of the key concepts in SeatScout.
+
+## Radar Lifecycle
+
+```text
+Create Radar
+     │
+     ▼
+Store Monitoring Request
+     │
+     ▼
+Radar Scheduler
+     │
+     ▼
+Periodic Availability Check
+     │
+     ├───────────────┐
+     │               │
+     ▼               ▼
+No Change         Change Found
+     │               │
+     ▼               ▼
+Continue          Process Event
+Monitoring            │
+                      ▼
+                 Notification
+```
+
+The monitoring worker runs independently from the web request/response cycle.
+
+This allows SeatScout to continue checking routes even when the user is not actively using the website.
+
+---
+
+# 🚉 Railway Station System
+
+SeatScout loads railway station data into memory when the server starts.
+
+Current startup behavior:
+
+```text
+Application starts
+       ↓
+StationService initializes
+       ↓
+~8967 stations loaded
+       ↓
+In-memory station index created
+       ↓
+Application starts accepting requests
+```
+
+This provides fast station lookup during application usage.
+
+---
+
+# 🛠️ Technology Stack
+
+## Frontend
+
+* Angular
+* TypeScript
+* JavaScript
+* HTML
+* CSS
+
+## Backend
+
+* Node.js
+* Server-side JavaScript
+* Compiled application output
+* `dist/server.cjs`
+
+## DevOps / Deployment
+
+* AWS EC2
+* Amazon Linux 2023
+* Nginx
+* systemd
+* DuckDNS
+* Git
+* GitHub
+* GitHub Actions
+* SSH
+
+## Development / Collaboration
+
+* GitHub
+* GitHub Actions
+* Postman
+* Jira
+* Agile/Scrum workflow
+
+---
+
+# 📁 Project Structure
+
+A simplified representation of the project:
+
+```text
+SeatScout/
+│
+├── src/
+│   ├── ...
+│   ├── services/
+│   ├── components/
+│   └── ...
+│
+├── public/
+│
+├── dist/
+│   └── server.cjs
+│
+├── .github/
+│   └── workflows/
+│       └── ...
+│
+├── scripts/
+│
+├── package.json
+├── package-lock.json
+├── deploy.sh
+├── .gitignore
+└── README.md
+```
+
+> The exact structure may change as the application continues to evolve.
+
+---
+
+# ☁️ Deployment Architecture
+
+SeatScout is hosted on an **AWS EC2 instance running Amazon Linux 2023**.
+
+The production setup can be represented as:
+
+```text
+                      GitHub
+                        │
+                        │ git push
+                        ▼
+                ┌─────────────────┐
+                │ GitHub Actions  │
+                └────────┬────────┘
+                         │
+                         │ SSH
+                         ▼
+                  ┌───────────────┐
+                  │ AWS EC2       │
+                  │ Amazon Linux  │
+                  └───────┬───────┘
+                          │
+                 ┌────────┴────────┐
+                 │                 │
+                 ▼                 ▼
+              Nginx             systemd
+                 │                 │
+                 │                 ▼
+                 │          SeatScout Service
+                 │                 │
+                 │                 ▼
+                 │             Node.js
+                 │              :3000
+                 │
+                 ▼
+        seatscout.duckdns.org
+```
+
+---
+
+# ☁️ EC2 Infrastructure
+
+The current production environment uses:
+
+```text
+Cloud Provider : AWS
+Service        : EC2
+Operating System: Amazon Linux 2023
+Node.js        : v22.23.2
+Application Port: 3000
+Reverse Proxy  : Nginx
+```
+
+The Node.js application listens internally on:
+
+```text
+0.0.0.0:3000
+```
+
+Nginx receives public web traffic and forwards it to the application.
+
+---
+
+# 🌐 Nginx Reverse Proxy
+
+Nginx provides the public entry point for SeatScout.
+
+Conceptually:
+
+```text
+Internet
+   │
+   ▼
+Nginx :80 / :443
+   │
+   ▼
+Node.js :3000
+```
+
+Instead of exposing the Node.js application directly to users, Nginx forwards requests internally.
+
+Example architecture:
+
+```text
+http://seatscout.duckdns.org
+              │
+              ▼
+          Nginx
+              │
+              ▼
+      http://127.0.0.1:3000
+              │
+              ▼
+        SeatScout Server
+```
+
+---
+
+# ⚙️ systemd Services
+
+SeatScout uses Linux `systemd` to manage production processes.
+
+## SeatScout Application Service
+
+Service:
+
+```text
+seatscout.service
+```
+
+Purpose:
+
+* Start the SeatScout server automatically
+* Restart/manage the application process
+* Allow the application to run as a background service
+* Start the application after EC2 reboot
+
+Conceptually:
+
+```text
+EC2 starts
+   ↓
+systemd starts
+   ↓
+seatscout.service
+   ↓
+Node.js server starts
+   ↓
+SeatScout available on :3000
+```
+
+---
+
+## DuckDNS Update Service
+
+Another service is used for IP mapping:
+
+```text
+duckdns-update.service
+```
+
+Its purpose is to update DuckDNS whenever the EC2 public IP changes.
+
+The associated script:
+
+```text
+update-duckdns.sh
+```
+
+updates the DuckDNS record using the current EC2 public IP.
+
+---
+
+# 🌍 DuckDNS IP Mapping
+
+The original EC2 setup uses a public IPv4 address that can change when the instance is stopped and started.
+
+For example:
+
+```text
+Before restart:
+
+EC2 Public IP
+     ↓
+13.x.x.x
+     ↓
+seatscout.duckdns.org
+```
+
+After an instance restart:
+
+```text
+New EC2 Public IP
+     ↓
+54.x.x.x
+     ↓
+DuckDNS record must be updated
+```
+
+SeatScout handles this automatically using the DuckDNS update service.
+
+## Current Flow
+
+```text
+EC2 boots
+   │
+   ▼
+duckdns-update.service
+   │
+   ▼
+update-duckdns.sh
+   │
+   ▼
+Get current EC2 public IP
+   │
+   ▼
+Update DuckDNS
+   │
+   ▼
+seatscout.duckdns.org
+   │
+   ▼
+New EC2 IP
+```
+
+This removes the need to manually update the DNS record after every EC2 restart.
+
+---
+
+# 🔐 CI/CD with GitHub Actions
+
+The project is designed around a GitHub-based deployment workflow.
+
+The basic idea is:
+
+```text
+Developer
+    │
+    │ git push
+    ▼
+GitHub Repository
+    │
+    ▼
+GitHub Actions
+    │
+    ├── Checkout code
+    ├── Prepare deployment
+    ├── Connect through SSH
+    └── Deploy to EC2
+            │
+            ▼
+          EC2
+            │
+            ▼
+       Update code
+            │
+            ▼
+       Build application
+            │
+            ▼
+      Restart service
+            │
+            ▼
+       SeatScout live
+```
+
+---
+
+# 🔑 GitHub Actions SSH Authentication
+
+The deployment architecture uses SSH authentication so GitHub Actions can connect securely to the EC2 server.
+
+The general flow is:
+
+```text
+GitHub Actions
+      │
+      │ SSH Private Key
+      ▼
+AWS EC2
+      │
+      ▼
+Deployment Commands
+```
+
+The private key must **never be committed to GitHub**.
+
+Sensitive values should be stored using:
+
+```text
+GitHub Repository Secrets
+```
+
+Examples of secrets that may be used:
+
+```text
+EC2_HOST
+EC2_USER
+EC2_SSH_KEY
+```
+
+Actual secret values should not appear inside source code or the README.
+
+---
+
+# 🚀 Deployment Flow
+
+The intended automated deployment process is:
+
+```text
+1. Developer changes code
+          ↓
+2. git add .
+          ↓
+3. git commit
+          ↓
+4. git push origin main
+          ↓
+5. GitHub Actions starts
+          ↓
+6. Repository is checked out
+          ↓
+7. GitHub Actions connects to EC2 using SSH
+          ↓
+8. Latest code is deployed
+          ↓
+9. Application is built
+          ↓
+10. seatscout.service is restarted
+          ↓
+11. Node.js starts on port 3000
+          ↓
+12. Nginx forwards requests
+          ↓
+13. SeatScout is updated
+```
+
+The goal is to reduce manual commands on EC2 after every GitHub push.
+
+---
+
+# 🔄 Git Workflow
+
+Typical local workflow:
+
 ```bash
-git clone https://github.com/Nitish-24/SeatScout.git
+git status
+```
+
+Check changed files.
+
+```bash
+git add .
+```
+
+Stage changes.
+
+```bash
+git commit -m "Update SeatScout"
+```
+
+Create a commit.
+
+```bash
+git push origin main
+```
+
+Push changes to GitHub.
+
+After a successful CI/CD workflow, the latest version can be deployed to EC2 automatically.
+
+---
+
+# 💻 Running Locally
+
+Clone the repository:
+
+```bash
+git clone <YOUR_GITHUB_REPOSITORY_URL>
 cd SeatScout
 ```
 
-### 2. Install Dependencies
+Install dependencies:
+
 ```bash
 npm install
 ```
 
-### 3. Create Environment Configuration
-Copy the example environment template:
-```bash
-cp .env.example .env
-```
-Open `.env` and fill in your keys (see configuration guide below).
+Run the development environment using the project's configured npm scripts.
 
-### 4. Run Development Server
+For example:
+
 ```bash
 npm run dev
 ```
 
-Open **`http://localhost:3000`** in your browser.
+or:
 
----
-
-## ⚙️ Environment Configuration (.env Guide)
-
-```env
-# 1. Google Gemini API Key (For AI Charting & Strategy Advice)
-GEMINI_API_KEY="your_gemini_api_key_here"
-
-# 2. Application Base URL
-APP_URL="http://localhost:3000"
-
-# 3. Meta WhatsApp Cloud API (For real WhatsApp notifications)
-# Obtain from https://developers.facebook.com/apps > WhatsApp > API Setup
-META_WHATSAPP_TOKEN="EAA..."
-META_PHONE_NUMBER_ID="105928372619283"
-WHATSAPP_TEMPLATE_NAME="otp_verification"
-WHATSAPP_TEMPLATE_LANG="en_US"
-
-# 4. SMS Gateway: Fast2SMS (India DLT/OTP Route)
-FAST2SMS_API_KEY="f2s_..."
-
-# 5. SMS Gateway: Twilio (Optional Global Route)
-TWILIO_ACCOUNT_SID=
-TWILIO_AUTH_TOKEN=
-TWILIO_PHONE_NUMBER=
-
-# 6. Long-form Email Alerts (SMTP via Nodemailer)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_email@gmail.com
-SMTP_PASS=your_app_password
-ALERT_FROM_EMAIL=alerts@seatscout.in
-```
-
-*(Note: All notification services degrade gracefully. If optional credentials are not provided, SeatScout displays rich in-app UI notifications without crashing).*
-
----
-
-## 🚀 Automated CI/CD & EC2 Deployment
-
-SeatScout includes a preconfigured **GitHub Actions CI/CD pipeline** in `.github/workflows/main.yml`.
-
-### Deployment Pipeline Workflow
-Whenever changes are pushed to the `main` branch, GitHub Actions executes:
-1. **SSH Authentication**: Connects securely to your AWS EC2 host using repository secrets (`EC2_SSH_KEY`, `EC2_HOST`, `EC2_USER`).
-2. **Automated Deploy Script**: Executes `~/deploy.sh` on the remote instance.
-3. **Zero-Downtime Reload**: Installs dependencies, runs `npm run build`, and restarts the server process with PM2.
-
-```yaml
-name: Deploy SeatScout
-on:
-  push:
-    branches: [ main ]
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
-          chmod 600 ~/.ssh/ec2_key
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
-      - name: Deploy to EC2
-        run: ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "~/deploy.sh"
-```
-
-### Manual Production Build
 ```bash
-# Build Vite client & bundle Express server with esbuild
-npm run build
-
-# Start production server on port 3000
 npm start
 ```
 
----
-
-## 📡 API Reference
-
-### Radar Endpoints
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/radar/list?clientId=...` | List all active and completed radars for a client device. |
-| `POST` | `/api/radar/create` | Create a new Single Train or Route Corridor radar job. |
-| `POST` | `/api/radar/:id/pause` | Pause an active background radar. |
-| `POST` | `/api/radar/:id/resume` | Resume a paused radar. |
-| `POST` | `/api/radar/:id/stop` | Stop monitoring and mark radar as cancelled. |
-| `DELETE` | `/api/radar/:id` | Delete radar job and remove from history. |
-| `POST` | `/api/radar/:id/scan` | Force an immediate PRS availability check for a radar. |
-| `GET` | `/api/radar/vapid-public-key` | Return valid 65-byte Base64URL VAPID public key. |
-| `POST` | `/api/radar/push/subscribe` | Register browser push subscription for a client device. |
-| `POST` | `/api/radar/push/test` | Trigger a test web push notification to client device. |
-
-### Train & Timetable Endpoints
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/trains/search` | Search trains between two IRCTC station codes. |
-| `GET` | `/api/trains/availability` | Fetch live berth availability across classes and dates. |
-| `GET` | `/api/trains/livestatus` | Real-time train delay, platform number, and live running status. |
-| `POST` | `/api/ai/predict-charting` | Gemini AI charting time and Current Booking berth prediction. |
-
-### Phone & Notification Endpoints
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/notifications/phone/request-otp` | Send verification OTP via WhatsApp or SMS. |
-| `POST` | `/api/notifications/phone/verify-otp` | Verify OTP code and register phone number. |
-| `POST` | `/api/notifications/phone/send-alert` | Dispatch manual or automated seat alert to phone. |
+depending on the current `package.json` configuration.
 
 ---
 
-## ❓ Frequently Asked Questions (FAQ)
+# 🔐 Environment Variables
 
-#### Q: What is `CURR_AVBL`?
-**A:** `CURR_AVBL` stands for **Current Booking Available**. When Indian Railways prepares the final reservation chart (~4 hours before departure or 8:00 PM the night before), all unbooked quota seats (VIP, Defence, Senior Citizen, Emergency) are pooled and released to the general public at standard base fares with confirmed coach and berth assignments.
+Sensitive configuration should be stored outside the Git repository.
 
-#### Q: Do I need to keep the browser tab open?
-**A:** No! The background radar runs 24/7 on the server. Even if your browser is closed, your phone is locked, or your computer is asleep, the server continues scanning PRS seat pools and dispatches WhatsApp, SMS, and Push notifications the second seats appear.
+Examples:
 
-#### Q: How do top-right screen pop-up alerts work when I am on another tab or app?
-**A:** When seats unlock, SeatScout triggers an OS-level Web Notification configured with `requireInteraction: true`. This causes the notification to pop up in the top-right corner of your screen (or Action Center) and stay there until you click or dismiss it. In addition, the SeatScout tab title flashes in your browser tab bar.
+```env
+API_KEY=
+DATABASE_URL=
+DUCKDNS_TOKEN=
+NODE_ENV=production
+```
 
-#### Q: Can I monitor multiple trains on a route at once?
-**A:** Yes! Tap **"Watch Entire Route"** on any search result to monitor every single train running on that corridor on your travel date.
+Never commit secrets such as:
 
-#### Q: Is booking done through IRCTC?
-**A:** Yes. SeatScout never asks for your IRCTC passwords or financial credentials. The alert pop-up provides a direct 1-click deep link to the official IRCTC portal pre-filled with your journey details so you can complete payment safely.
+* API keys
+* Passwords
+* SSH private keys
+* Access tokens
+* Cloud credentials
+* Database credentials
+
+Use:
+
+```text
+.env
+```
+
+and make sure sensitive files are included in `.gitignore`.
 
 ---
 
-## 📄 License
+# 🚫 .gitignore
 
-This project is licensed under the [MIT License](LICENSE).
+Sensitive and generated files should not be pushed to GitHub.
+
+Typical examples:
+
+```gitignore
+node_modules/
+.env
+.env.*
+dist/
+*.log
+*.pem
+*.key
+```
+
+The exact `.gitignore` should match the project's actual build and deployment requirements.
+
+---
+
+# 📊 Production Process Management
+
+Useful commands on EC2:
+
+## Check SeatScout service
+
+```bash
+sudo systemctl status seatscout.service
+```
+
+## Restart SeatScout
+
+```bash
+sudo systemctl restart seatscout.service
+```
+
+## Start SeatScout
+
+```bash
+sudo systemctl start seatscout.service
+```
+
+## Stop SeatScout
+
+```bash
+sudo systemctl stop seatscout.service
+```
+
+## Enable at boot
+
+```bash
+sudo systemctl enable seatscout.service
+```
+
+---
+
+# 📜 Logs
+
+SeatScout logs can be inspected through `journalctl`.
+
+View recent application logs:
+
+```bash
+sudo journalctl -u seatscout.service -n 100
+```
+
+Follow logs live:
+
+```bash
+sudo journalctl -u seatscout.service -f
+```
+
+View DuckDNS service logs:
+
+```bash
+sudo journalctl -u duckdns-update.service -n 100
+```
+
+Follow DuckDNS logs:
+
+```bash
+sudo journalctl -u duckdns-update.service -f
+```
+
+---
+
+# 🔍 Troubleshooting
+
+## Check whether Node.js is running
+
+```bash
+ps aux | grep node
+```
+
+## Check port 3000
+
+```bash
+sudo ss -ltnp | grep 3000
+```
+
+## Test the application locally on EC2
+
+```bash
+curl http://localhost:3000
+```
+
+## Check Nginx status
+
+```bash
+sudo systemctl status nginx
+```
+
+## Test Nginx configuration
+
+```bash
+sudo nginx -t
+```
+
+## Restart Nginx
+
+```bash
+sudo systemctl restart nginx
+```
+
+---
+
+# ⚠️ EADDRINUSE / Port Already in Use
+
+One issue encountered during deployment was:
+
+```text
+Error: EADDRINUSE: address already in use 0.0.0.0:3000
+```
+
+This means another process is already listening on port `3000`.
+
+Check the process:
+
+```bash
+sudo ss -ltnp | grep 3000
+```
+
+or:
+
+```bash
+sudo lsof -i :3000
+```
+
+When using systemd, the preferred approach is to manage the application through:
+
+```bash
+sudo systemctl restart seatscout.service
+```
+
+rather than manually starting multiple Node.js processes.
+
+---
+
+# 🧱 Current Production Architecture Summary
+
+```text
+                     USER
+                       │
+                       ▼
+              seatscout.duckdns.org
+                       │
+                       ▼
+                    Nginx
+                       │
+                       ▼
+                Node.js :3000
+                       │
+         ┌─────────────┴─────────────┐
+         │                           │
+         ▼                           ▼
+    SeatScout App              Radar Scheduler
+         │                           │
+         ▼                           ▼
+ Station Service              Availability Checks
+         │                           │
+         ▼                           ▼
+ ~8967 stations                 Notifications
+
+
+       AWS EC2 / Amazon Linux 2023
+                    │
+          ┌─────────┴─────────┐
+          │                   │
+          ▼                   ▼
+ seatscout.service     duckdns-update.service
+          │                   │
+          ▼                   ▼
+     Node.js App         update-duckdns.sh
+                              │
+                              ▼
+                     Current EC2 Public IP
+                              │
+                              ▼
+                      DuckDNS DNS Record
+
+
+                    GitHub
+                      │
+                      ▼
+                GitHub Actions
+                      │
+                      ▼
+                 SSH to EC2
+                      │
+                      ▼
+               Automated Deployment
+```
+
+---
+
+# 🧩 Why This Architecture?
+
+The project demonstrates several important DevOps concepts together:
+
+### Application
+
+SeatScout provides the actual business functionality for railway seat monitoring.
+
+### Nginx
+
+Nginx acts as a reverse proxy and provides the public web entry point.
+
+### Node.js
+
+The SeatScout backend runs as a Node.js service on port `3000`.
+
+### systemd
+
+systemd keeps the application running and allows it to start automatically after a server reboot.
+
+### DuckDNS
+
+DuckDNS provides a domain name that can be updated when the EC2 public IP changes.
+
+### GitHub
+
+GitHub provides source-code management and version control.
+
+### GitHub Actions
+
+GitHub Actions provides the foundation for automated CI/CD.
+
+### AWS EC2
+
+EC2 provides the production compute environment.
+
+Together, these components create a complete development-to-production workflow.
+
+---
+
+# 🗺️ Future Infrastructure Improvement
+
+The current architecture uses **DuckDNS + automatic public-IP mapping**.
+
+A future production-oriented architecture can replace this with:
+
+```text
+                    Route 53
+                       │
+                       ▼
+                Elastic IP / ALB
+                       │
+                       ▼
+                    Nginx
+                       │
+                       ▼
+                 Node.js App
+                       │
+                       ▼
+                 AWS EC2 / ECS
+```
+
+Possible improvements include:
+
+* AWS Elastic IP
+* Route 53 DNS
+* HTTPS with SSL/TLS
+* Docker containerization
+* Amazon ECR
+* ECS / Kubernetes
+* Application Load Balancer
+* CloudWatch monitoring
+* Centralized logging
+* Auto Scaling
+* Infrastructure as Code
+* GitHub Actions with stronger deployment strategies
+
+The important architectural improvement is eliminating dependency on a changing EC2 public IP.
+
+---
+
+# 🔮 Future Improvements
+
+Potential next steps for SeatScout include:
+
+```text
+✔ HTTPS
+✔ Elastic IP
+✔ Route 53
+✔ Docker
+✔ AWS ECR
+✔ ECS / Kubernetes
+✔ Better notification system
+✔ Database-backed Radar persistence
+✔ Improved monitoring
+✔ CloudWatch integration
+✔ Health checks
+✔ Automated rollback
+✔ Infrastructure as Code
+✔ Improved CI/CD pipeline
+```
+
+---
+
+# 🎯 Project Goal
+
+SeatScout started as a railway seat availability application and evolved into a practical **DevOps deployment project**.
+
+The project demonstrates the complete journey:
+
+```text
+Code
+  ↓
+Git
+  ↓
+GitHub
+  ↓
+GitHub Actions
+  ↓
+SSH
+  ↓
+AWS EC2
+  ↓
+systemd
+  ↓
+Node.js
+  ↓
+Nginx
+  ↓
+DuckDNS
+  ↓
+🌐 Live Application
+```
+
+---
+
+# 👨‍💻 Author
+
+**Nit**
+
+Built as a hands-on project to explore:
+
+```text
+Full Stack Development
+        +
+Cloud
+        +
+Linux
+        +
+AWS
+        +
+CI/CD
+        +
+DevOps
+```
+
+---
+
+## 🌐 Live Project
+
+**SeatScout:** http://seatscout.duckdns.org/
+
+⭐ Star the repository if you find the project useful.
+
+---
