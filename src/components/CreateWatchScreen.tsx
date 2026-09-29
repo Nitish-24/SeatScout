@@ -31,6 +31,7 @@ import { StationAutocomplete } from './StationAutocomplete';
 import { getCachedStation } from '../services/stationService';
 import { RadarApiService } from '../services/radarApiService';
 import { PushNotificationService } from '../services/pushNotification';
+import { triggerInAppNotification } from '../utils/audioAlert';
 import {
   TimeSlotId,
   TimeSlotTarget,
@@ -181,6 +182,19 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
         travelClass: defaultCls,
         quota: quota
       });
+
+      // Immediate top-right screen pop-up confirmation
+      triggerInAppNotification({
+        title: `📡 Route Radar Active: ${fromStation.code} → ${toStation.code}`,
+        body: `Watching all ${trainsList.length || 'corridor'} trains for ${journeyDate}. Top-right display pop-ups will alert you the moment seats are found!`,
+        fromCode: fromStation.code,
+        toCode: toStation.code,
+        journeyDate: journeyDate,
+        travelClass: defaultCls,
+        quota: quota,
+        type: 'RADAR_ACTIVE'
+      });
+
       onRefreshRadars?.();
       if (onViewActiveWatch) {
         onViewActiveWatch();
@@ -243,6 +257,21 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
         quota: quota,
         departureTime: depTime
       });
+
+      // Immediate top-right screen pop-up confirmation
+      triggerInAppNotification({
+        title: `📡 Train Radar Active: ${trainNumber} ${trainName}`,
+        body: `Watching ${finalFromCode} → ${finalToCode} (${jDate}, ${travelClass}). You will receive immediate top-right display pop-ups when seats open!`,
+        trainNumber,
+        trainName,
+        fromCode: finalFromCode,
+        toCode: finalToCode,
+        journeyDate: jDate,
+        travelClass,
+        quota,
+        type: 'RADAR_ACTIVE'
+      });
+
       onRefreshRadars?.();
     } catch (err) {
       console.warn('Server radar trigger notice:', err);

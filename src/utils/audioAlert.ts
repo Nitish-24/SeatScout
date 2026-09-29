@@ -132,7 +132,25 @@ export function isInIframe(): boolean {
 }
 
 // In-app fallback notification event listener
-type InAppNotificationListener = (payload: { title: string; body?: string }) => void;
+export interface InAppNotificationPayload {
+  title: string;
+  body?: string;
+  trainNumber?: string;
+  trainName?: string;
+  availableBerths?: number;
+  fromCode?: string;
+  toCode?: string;
+  journeyDate?: string;
+  travelClass?: string;
+  quota?: string;
+  bookingUrl?: string;
+  radarId?: string;
+  mode?: 'TRAIN' | 'ROUTE';
+  type?: 'SEAT_FOUND' | 'RADAR_ACTIVE' | 'INFO';
+  radarRef?: any;
+}
+
+type InAppNotificationListener = (payload: InAppNotificationPayload) => void;
 const inAppListeners = new Set<InAppNotificationListener>();
 
 export function subscribeToInAppNotifications(listener: InAppNotificationListener): () => void {
@@ -140,13 +158,53 @@ export function subscribeToInAppNotifications(listener: InAppNotificationListene
   return () => inAppListeners.delete(listener);
 }
 
-export function triggerInAppNotification(title: string, body?: string) {
+export function triggerInAppNotification(payload: string | InAppNotificationPayload, body?: string) {
+  const normalized: InAppNotificationPayload = typeof payload === 'string'
+    ? { title: payload, body, type: 'SEAT_FOUND' }
+    : payload;
+
   inAppListeners.forEach((listener) => {
     try {
-      listener({ title, body });
+      listener(normalized);
     } catch (e) {
       console.error('In-app notification listener error:', e);
     }
+  });
+}
+
+// Flashing document tab title to draw instant attention when user is on another browser tab
+let tabAlertInterval: any = null;
+let originalDocTitle = '';
+
+export function startTabAlertBadge(alertMessage: string = '🚨 SEATS AVAILABLE!') {
+  if (typeof document === 'undefined') return;
+  if (!originalDocTitle) {
+    originalDocTitle = document.title || 'SeatScout';
+  }
+
+  if (tabAlertInterval) {
+    clearInterval(tabAlertInterval);
+  }
+
+  let toggle = true;
+  tabAlertInterval = setInterval(() => {
+    document.title = toggle ? alertMessage : `⚡ ${originalDocTitle}`;
+    toggle = !toggle;
+  }, 900);
+
+  const clearAlert = () => {
+    if (tabAlertInterval) {
+      clearInterval(tabAlertInterval);
+      tabAlertInterval = null;
+    }
+    document.title = originalDocTitle;
+    window.removeEventListener('focus', clearAlert);
+    document.removeEventListener('visibilitychange', clearAlert);
+  };
+
+  window.addEventListener('focus', clearAlert);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) clearAlert();
   });
 }
 
@@ -202,26 +260,62 @@ export async function requestNotificationPermission(): Promise<{
 }
 
 /**
- * Dispatch desktop push notification with automatic In-App notification fallback
+ * Dispatch desktop push notification with automatic In-App notification fallback.
+ * Uses ServiceWorkerRegistration.showNotification() when available (which works even
+ * when user is on another browser tab or another application), with fallback to new Notification().
  */
-export function sendDesktopNotification(title: string, options?: NotificationOptions) {
-  // Always trigger the in-app notification & toast as a reliable fallback
-  triggerInAppNotification(title, options?.body);
+export async function sendDesktopNotification(
+  title: string, 
+  options?: NotificationOptions & { data?: any }
+) {
+  // 1. Flash the tab title so it stands out in the browser tab bar
+  startTabAlertBadge(`🚨 ${title}`);
 
-  if (!('Notification' in window) || Notification.permission !== 'granted') {
+  // 2. Dispatch native OS desktop pop-up on the screen
+  if (typeof window === 'undefined' || !('Notification' in window)) {
     return;
   }
+
+  if (Notification.permission !== 'granted') {
+    return;
+  }
+
+  const notifOptions: NotificationOptions & Record<string, any> = {
+    body: options?.body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: `seatscout-seat-alert-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true, // Keeps alert popup on top-right of the screen until user dismisses or clicks!
+    vibrate: [300, 100, 300, 100, 300],
+    data: {
+      url: typeof window !== 'undefined' ? window.location.origin + '/?screen=monitoring' : '/?screen=monitoring',
+      ...options?.data
+    },
+    ...options
+  };
+
+  // Method A: Service Worker showNotification (Best for background tabs, Chrome & Firefox)
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg && reg.showNotification) {
+        await reg.showNotification(title, notifOptions);
+        return;
+      }
+    } catch (swErr) {
+      console.warn('Service worker showNotification fallback:', swErr);
+    }
+  }
+
+  // Method B: Direct new Notification constructor
   try {
-    const notification = new Notification(title, {
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
-      ...options
-    });
+    const notification = new Notification(title, notifOptions);
     notification.onclick = () => {
       window.focus();
       notification.close();
     };
   } catch (e) {
-    console.warn('Could not dispatch desktop notification (using in-app alert instead):', e);
+    console.warn('Direct notification construction failed:', e);
   }
 }

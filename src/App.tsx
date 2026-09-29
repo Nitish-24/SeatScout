@@ -143,11 +143,36 @@ export default function App() {
             body = `${primary.availableBerths} berth(s) available on ${primary.trainNumber} ${primary.trainName} for ${radar.journeyDate} (${radar.travelClass}). Tap to book on IRCTC!`;
           }
 
-          // 3. Trigger In-App Notification Toast Popup & Desktop Push
-          triggerInAppNotification(title, body);
-          sendDesktopNotification(title, { body });
+          // 3. Trigger In-App Notification Toast Popup (Top-Right of screen)
+          triggerInAppNotification({
+            title,
+            body,
+            trainNumber: primary.trainNumber,
+            trainName: primary.trainName,
+            availableBerths: primary.availableBerths,
+            fromCode: radar.fromCode,
+            toCode: radar.toCode,
+            journeyDate: radar.journeyDate,
+            travelClass: radar.travelClass,
+            quota: radar.quota,
+            bookingUrl: primary.bookingUrl || 'https://www.irctc.co.in/nget/train-search',
+            radarId: radar.id,
+            mode: radar.mode,
+            type: 'SEAT_FOUND',
+            radarRef: radar
+          });
 
-          // 4. Open the celebration and booking modal popup
+          // 4. Trigger Native Desktop Push (Top-Right Pop-up on display when on other tabs/apps)
+          sendDesktopNotification(title, {
+            body,
+            data: {
+              radarId: radar.id,
+              trainNumber: primary.trainNumber,
+              url: typeof window !== 'undefined' ? `${window.location.origin}/?screen=monitoring&radarId=${radar.id}` : '/?screen=monitoring'
+            }
+          });
+
+          // 5. Open the celebration and booking modal popup
           setActiveModalRadar(radar);
 
           // 5. Record to alert history
@@ -294,6 +319,21 @@ export default function App() {
         if (settings.soundEnabled) {
           playSeatAlertSound('chime', settings.volume);
         }
+
+        // Trigger In-App Notification Toast Popup (Top-Right)
+        triggerInAppNotification({
+          title: `🎉 Seat Available: ${targetFoundWatch.trainNumber} ${targetFoundWatch.trainName}`,
+          body: `${targetFoundWatch.fromStation.city} → ${targetFoundWatch.toStation.city} | ${targetFoundWatch.journeyDate} | ${targetFoundWatch.travelClass} (${targetFoundWatch.quota}) | CURR_AVBL ${String(customBerths).padStart(4, '0')}`,
+          trainNumber: targetFoundWatch.trainNumber,
+          trainName: targetFoundWatch.trainName,
+          availableBerths: customBerths,
+          fromCode: targetFoundWatch.fromStation.code,
+          toCode: targetFoundWatch.toStation.code,
+          journeyDate: targetFoundWatch.journeyDate,
+          travelClass: targetFoundWatch.travelClass,
+          quota: targetFoundWatch.quota,
+          type: 'SEAT_FOUND'
+        });
 
         // Trigger Desktop Push Notification
         sendDesktopNotification(`🎉 Seat Available: ${targetFoundWatch.trainNumber} ${targetFoundWatch.trainName}`, {
@@ -655,8 +695,18 @@ export default function App() {
         notificationPermission={notificationPermission}
       />
 
-      {/* In-App Live Notification Toast Broadcast */}
-      <InAppNotificationToast />
+      {/* In-App Live Notification Toast Broadcast (Top Right Corner) */}
+      <InAppNotificationToast
+        onNavigateToRadar={(radarId) => {
+          setCurrentScreen('monitoring');
+          if (radarId) {
+            setHighlightRadarId(radarId);
+          }
+        }}
+        onOpenAlertModal={(radar) => {
+          if (radar) setActiveModalRadar(radar);
+        }}
+      />
 
       {/* Seat Available Alert Celebration & Direct Booking Modal */}
       <SeatAvailableModal
