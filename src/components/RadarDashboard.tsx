@@ -27,7 +27,7 @@ import { ServerRadarJob, MonitoredTrainStatus } from '../types';
 import { RadarApiService } from '../services/radarApiService';
 import { PushNotificationService } from '../services/pushNotification';
 import { POPULAR_STATIONS, CLASS_LABELS, QUOTA_DETAILS } from '../data/trainData';
-import { playSeatAlertSound, triggerInAppNotification, sendDesktopNotification } from '../utils/audioAlert';
+import { playSeatAlertSound } from '../utils/audioAlert';
 import { getCachedStation } from '../services/stationService';
 
 export const getStationDisplayName = (code: string, explicitName?: string): string => {
@@ -90,32 +90,6 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
     } finally {
       setIsEnablingPush(false);
     }
-  };
-
-  const handleTestSeatPopupAlert = async () => {
-    // 1. Play chime audio
-    playSeatAlertSound('chime', 0.85);
-
-    // 2. Trigger rich top-right pop-up card
-    triggerInAppNotification({
-      title: '🎉 Confirmed Berth on 12012 Kalka Shatabdi!',
-      body: '4 confirmed berths (CURR_AVBL) released for CDG → NDLS! Tap to book on IRCTC.',
-      trainNumber: '12012',
-      trainName: 'Kalka Shatabdi Express',
-      availableBerths: 4,
-      fromCode: 'CDG',
-      toCode: 'NDLS',
-      journeyDate: new Date().toISOString().split('T')[0],
-      travelClass: 'CC',
-      quota: 'GN',
-      bookingUrl: 'https://www.irctc.co.in/nget/train-search',
-      type: 'SEAT_FOUND'
-    });
-
-    // 3. Dispatch native OS desktop notification (works even when working in other tabs or apps)
-    sendDesktopNotification('🎉 Confirmed Berth on 12012 Kalka Shatabdi!', {
-      body: '4 confirmed seats released on CDG → NDLS! Top-right display pop-up alert active.'
-    });
   };
 
   // Actions on Radars
@@ -230,16 +204,6 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={handleTestSeatPopupAlert}
-            className="px-3.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
-            title="Test the top-right display pop-up alert and audio chime"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Test Pop-up Alert</span>
-          </button>
-
           <button
             type="button"
             onClick={onNavigateToSearch}
