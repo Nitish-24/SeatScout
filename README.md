@@ -1,18 +1,18 @@
 # SeatScout — Indian Railways Current Booking (`CURR_AVBL`) Radar
 
 <p align="center">
-  <img src="public/images/guide_radar_screen.jpg" alt="SeatScout Dashboard Interface" width="100%" style="border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.4);" />
+  <img src="public/images/guide_radar_screen.jpg" alt="SeatScout 24/7 Radar Dashboard" width="100%" style="border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);" />
 </p>
 
 <p align="center">
-  <strong>Smart 24/7 PRS Berth Radar & Last-Minute Confirmed Seat Alert System for Indian Railways</strong>
+  <strong>An automated, real-time 24/7 PRS berth radar and last-minute confirmed seat monitoring system for Indian Railways passengers.</strong>
 </p>
 
 <p align="center">
   <a href="#-about-this-project"><img src="https://img.shields.io/badge/Project-SeatScout-blue?style=for-the-badge&logo=compass" alt="About SeatScout" /></a>
-  <a href="#-how-it-works-the-4-step-guide"><img src="https://img.shields.io/badge/Interactive_Guide-4_Steps-10b981?style=for-the-badge&logo=book" alt="Interactive Guide" /></a>
-  <a href="#-meta-whatsapp-cloud-api-integration"><img src="https://img.shields.io/badge/Meta_WhatsApp-Cloud_API-25d366?style=for-the-badge&logo=whatsapp" alt="Meta WhatsApp" /></a>
+  <a href="#-visual-step-by-step-walkthrough"><img src="https://img.shields.io/badge/Visual_Walkthrough-Screenshots-10b981?style=for-the-badge&logo=camera" alt="Screenshots" /></a>
   <a href="#-top-right-screen-alerts--desktop-notifications"><img src="https://img.shields.io/badge/Screen_Alerts-Top_Right_Popup-f59e0b?style=for-the-badge&logo=bell" alt="Screen Alerts" /></a>
+  <a href="#-meta-whatsapp-cloud-api-integration"><img src="https://img.shields.io/badge/Meta_WhatsApp-Cloud_API-25d366?style=for-the-badge&logo=whatsapp" alt="Meta WhatsApp" /></a>
   <a href="#-tech-stack"><img src="https://img.shields.io/badge/React_19-Tailwind_v4-38bdf8?style=for-the-badge&logo=react" alt="React 19" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-emerald?style=for-the-badge" alt="License" /></a>
 </p>
@@ -21,152 +21,165 @@
 
 ## 📌 About This Project
 
-**SeatScout** is a full-stack, real-time seat monitoring radar designed for Indian Railways passengers. 
+Every single day, millions of passengers across India struggle with **Waitlisted (WL)** and **RAC** train tickets. When regular booking exhausts, many rush for emergency **Tatkal** at 10:00 AM / 11:00 AM, only to face overloaded IRCTC servers, gateway timeouts, non-refundable ticket losses, and surging surge-pricing.
 
-Every day, millions of travelers in India are stuck with **Waitlisted (WL)** or **RAC** tickets, or miss out on Tatkal bookings due to server queues and payment delays. However, many travelers are unaware that **Indian Railways releases unbooked quota seats (VIP, Senior Citizen, Defence, Emergency) to the public as Current Booking (`CURR_AVBL`) berths approximately 4 hours before train departure (or the night before for morning trains)** at standard base fares with 100% confirmed berth assignments.
+**However, there is an official, legitimate railway mechanism that most travelers miss:** **Current Booking (`CURR_AVBL`)**.
 
-Because these released seats vanish within minutes, manually refreshing IRCTC is exhausting and impractical. **SeatScout automates this entire process**:
-- It runs a continuous **24/7 background radar** on your desired train or entire route corridor.
-- It detects the exact second vacant berths unlock at chart preparation.
-- It dispatches **instant audio chimes**, **radiant top-right screen pop-up alerts**, **OS desktop notifications**, **WhatsApp messages via Meta Cloud API**, **SMS via mobile gateways**, and **detailed email dossiers**.
-- It provides **1-click direct deep links to IRCTC** so you can book confirmed tickets immediately.
+### The Problem
+- **4 Hours Before Train Departure** (or 8:00 PM the previous evening for morning departures), Indian Railways Passenger Reservation System (PRS) freezes waitlists and prepares the **First Reservation Chart**.
+- **Unbooked Quotas Are Pooled**: Unused berths reserved for VIPs, Senior Citizens, Defence personnel, Foreign Tourists, Railway Officials, and Emergency Concessions are unlocked and pooled together into the general public pool.
+- **Normal Base Fares**: These berths are sold at **standard base fare** (often even with a 10% discount) with **100% confirmed coaches and berth assignments**!
+- **The Catch**: These vacant seats disappear within seconds. Travelers cannot sit and manually refresh the IRCTC website every 15 seconds.
+
+### The Solution: SeatScout
+**SeatScout is an automated, real-time background radar that eliminates manual refreshing entirely**:
+1. You select a specific train or an entire travel corridor (e.g. *Chandigarh → New Delhi*).
+2. SeatScout launches an independent **24/7 server-side monitoring daemon** that continuously queries PRS seat pools with adaptive frequency scaling.
+3. The instant berths release, SeatScout triggers:
+   - An **auditory chime** synthesized in real-time via the Web Audio API.
+   - A **radiant top-right screen pop-up card** on your display with train details, berth count, and booking links.
+   - An **OS-level desktop notification** that stays pinned on your screen even if you are working on other browser tabs or applications.
+   - A **flashing browser tab badge** (`🚨 SEATS FOUND! 12012 Shatabdi` ↔ `SeatScout`).
+   - Official **Meta WhatsApp Cloud API** messages and SMS OTP/berth alerts directly to your mobile phone.
+4. A direct **1-click deep link launches the official IRCTC portal** pre-filled with your journey details so you can secure your ticket before anyone else.
 
 ---
 
 ## 📖 Table of Contents
 1. [About This Project](#-about-this-project)
-2. [The Secret of Current Booking (`CURR_AVBL`)](#-the-secret-of-current-booking-curr_avbl)
-3. [How It Works: The 4-Step Guide](#-how-it-works-the-4-step-guide)
-4. [Top-Right Screen Alerts & Desktop Notifications](#-top-right-screen-alerts--desktop-notifications)
-5. [Key Features & What We Built](#-key-features--what-we-built)
-6. [Meta WhatsApp Cloud API Integration](#-meta-whatsapp-cloud-api-integration)
-7. [Architecture & System Flow](#-architecture--system-flow)
-8. [Tech Stack](#-tech-stack)
-9. [Getting Started (Local Setup)](#-getting-started-local-setup)
-10. [Configuration Guide (.env)](#-configuration-guide-env)
-11. [Production Deployment](#-production-deployment)
-12. [API Reference](#-api-reference)
-13. [Frequently Asked Questions (FAQ)](#-frequently-asked-questions-faq)
+2. [The 4-Hour Charting & Seat Release Timeline](#-the-4-hour-charting--seat-release-timeline)
+3. [Visual Step-by-Step Walkthrough](#-visual-step-by-step-walkthrough)
+   - [Step 1: Search Trains & Live Availability](#step-1-search-trains--check-live-availability)
+   - [Step 2: 24/7 Radar Monitoring Dashboard](#step-2-activate-247-radar-monitoring)
+   - [Step 3: Radiant Top-Right Pop-up & Desktop Alert](#step-3-radiant-top-right-screen-alerts--desktop-notifications)
+   - [Step 4: Meta WhatsApp Cloud API & SMS Delivery](#step-4-meta-whatsapp--mobile-sms-alerts)
+   - [Step 5: Interactive 4-Step In-App Guide](#step-5-interactive-4-step-guide)
+4. [System Architecture](#-system-architecture)
+5. [Tech Stack](#-tech-stack)
+6. [Getting Started (Local Development)](#-getting-started-local-development)
+7. [Environment Configuration (.env Guide)](#-environment-configuration-env-guide)
+8. [Automated CI/CD & EC2 Deployment](#-automated-cicd--ec2-deployment)
+9. [API Reference](#-api-reference)
+10. [Frequently Asked Questions (FAQ)](#-frequently-asked-questions-faq)
 
 ---
 
-## 💡 The Secret of Current Booking (`CURR_AVBL`)
+## ⏱️ The 4-Hour Charting & Seat Release Timeline
 
 <p align="center">
-  <img src="public/images/guide_charting_timeline.jpg" alt="IRCTC Current Booking Timeline" width="100%" style="border-radius: 12px;" />
+  <img src="public/images/guide_charting_timeline.jpg" alt="IRCTC Current Booking Timeline" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
 </p>
 
-| Stage | Timing | What Indian Railways Does | How SeatScout Works |
+| Stage | Timing | Indian Railways Action | SeatScout Radar Action |
 |---|---|---|---|
-| **Stage 1: Pre-Charting** | Days before up to 4 hrs before departure | Regular waitlist & Tatkal bookings operate; seats often show WL or Regret. | Register a single train or entire route on the SeatScout 24/7 Radar. |
-| **Stage 2: Chart Preparation** | Exactly 4 hrs before departure (or 8:00 PM previous night for morning departures) | Indian Railways PRS finalizes the 1st reservation chart. Leftover quotas (VIP, Defence, Foreign Tourist, Emergency) are pooled. | Radar escalates to high-frequency polling as the charting window approaches. |
-| **Stage 3: Current Booking Open** | Chart preparation until 30 min before departure | Vacant berths release as `CURR_AVBL` at normal fare with confirmed coach and berth numbers. | **Instant Multi-Channel Alert**: Radiant top-right screen pop-up, audio chime, desktop notification, WhatsApp & SMS alert! |
+| **Stage 1: Pre-Charting** | Days before up to 4 hrs before departure | Regular waitlist & Tatkal bookings open; high-demand trains show WL or Regret. | Register a single train or entire corridor on the SeatScout 24/7 Radar. |
+| **Stage 2: Chart Preparation** | Exactly 4 hrs before departure (or 8:00 PM previous night for morning departures) | PRS finalizes the 1st reservation chart. Leftover quotas (VIP, Defence, Senior Citizen, Emergency) are pooled. | Radar escalates to high-frequency polling (every 10s–15s) as charting nears. |
+| **Stage 3: Current Booking Open** | Chart prep until 30 min before departure | Vacant berths release as `CURR_AVBL` at standard fare with confirmed coach and berth numbers. | **Instant Multi-Channel Alert**: Top-right screen pop-up, audio chime, desktop notification, WhatsApp & SMS alert! |
 
 ---
 
-## 🧭 How It Works: The 4-Step Guide
+## 📸 Visual Step-by-Step Walkthrough
 
-The application features a built-in step-by-step interactive walkthrough that guides any user from train search to confirmed booking:
-
-```
-[ Step 1: Pick Stations ] ──> [ Step 2: Date & Class ] ──> [ Step 3: Start Radar ] ──> [ Step 4: Get Alerted & Book ]
-```
-
-### 1. Pick Your Stations
-- Search across **9,000+ Indian Railway Stations** with instant autocomplete by station name or code (e.g., `NDLS`, `CDG`, `CSMT`, `HWH`).
-- Or tap any popular route shortcut (e.g., *Chandigarh → New Delhi*, *Mumbai CSMT → Pune*, *New Delhi → Lucknow*).
-
-### 2. Choose Date & Class
-- Select your travel date from the calendar.
-- Choose your booking quota (`General (GN)`, `Tatkal (TQ)`, `Senior Citizen (SS)`, `Ladies (LD)`, or `Divyangjan (HP)`).
-- Filter by coach class: **AC Chair Car (CC)**, **AC 3-Tier (3A)**, **AC 2-Tier (2A)**, **Sleeper (SL)**, or **Executive (EC)**.
-
-### 3. Tap "Start Radar"
-- Choose between **Single Train Radar** (monitoring one specific train) or **Watch Entire Route** (monitoring all trains running on the corridor on your travel date).
-- The 24/7 background worker monitors PRS seat pools continuously without you needing to manually refresh the page.
-
-### 4. Get Alerted & Book
-- The second berths unlock:
-  - An **auditory chime** rings through your speakers.
-  - A **radiant top-right screen pop-up** appears on your display with train details, berth count, and booking links.
-  - An **OS-level desktop notification** pops up even if you are working on other browser tabs or desktop applications.
-  - Your browser tab title visibly flashes (`🚨 SEATS FOUND! 12012 Shatabdi` ↔ `SeatScout`).
-  - Mobile alerts are sent to your verified **WhatsApp** and **SMS**.
-- Click **"Book Now on IRCTC"** to launch the official IRCTC portal and secure your seat!
+Follow the exact flow of the application from station search to instant confirmed booking:
 
 ---
 
-## 🔔 Top-Right Screen Alerts & Desktop Notifications
-
-One of the standout features of SeatScout is its **guaranteed visibility system**, ensuring you never miss an alert even if you are multitasking across other websites or desktop applications:
-
-### 1. In-App Radiant Pop-up Card (`InAppNotificationToast.tsx`)
-- Positioned in the **top-right corner of the screen** (`fixed top-4 right-4 z-[99999]`), floating above all modals and page content.
-- Displays a glowing green animated border, live beacon pulse, exact train name & number, route corridor, class, and confirmed berth count.
-- Features one-click action buttons:
-  - **⚡ Book on IRCTC**: Direct portal link.
-  - **🎯 View Radar**: Automatically switches to the radar view and highlights the train.
-  - **🔊 Replay Sound**: Re-triggers the acoustic chime.
-- Includes a 20-second countdown bar that **automatically pauses when hovered over with the mouse cursor**.
-
-### 2. OS Desktop System Notifications
-- Built using the W3C Web Notification API and `ServiceWorkerRegistration.showNotification()`.
-- Configured with `requireInteraction: true`, meaning the notification card **stays pinned in the top-right corner of your operating system display** until you explicitly interact with or dismiss it.
-- Configured with `renotify: true`, vibration patterns, and high-resolution icons.
-
-### 3. Flashing Browser Tab Indicator
-- When you are working in another browser tab, the SeatScout tab title dynamically alternates (`🚨 (1) SEATS FOUND!` ↔ `⚡ SeatScout`), immediately catching your eye in the tab bar.
-
-### 4. Interactive "Test Pop-up Alert"
-- A dedicated **"Test Pop-up Alert"** button is built into the Radar Dashboard, allowing you to test the screen pop-up card, sound chime, and desktop notification at any time.
-
----
-
-## ✨ Key Features & What We Built
-
-- 🛰️ **24/7 Server-Side Radar Daemon**: Background scheduling engine with persistent state storage (`data/radars.json`) that monitors PRS berth pools independently of client browser sessions.
-- ⚡ **Route Corridor Radar**: Ability to monitor all trains operating between two stations simultaneously with a single click.
-- 💬 **Official Meta WhatsApp Cloud API**: Direct WhatsApp message dispatch with non-promotional OTP verification and seat release notifications.
-- 📱 **Multi-Channel SMS Gateway**: Support for Fast2SMS (India OTP route) and Twilio with mobile number verification.
-- 📧 **Long-Form HTML Email Alerts**: Rich email dossiers generated via SMTP (Nodemailer) with station departure schedules and coach types.
-- 🛡️ **Self-Healing VAPID Web Push Service**: Automatic Base64URL key validation ensuring 65-byte uncompressed P-256 public keys, with automated fallback key generation to prevent startup errors.
-- 🤖 **Gemini AI Charting & Strategy Advisor**: Predicts charting preparation times, analyzes waitlist confirmation probabilities, and recommends Tatkal vs. Current Booking timing.
-- 🚉 **National Station Index (9,000+ Stations)**: High-performance searchable dataset covering all IRCTC station codes, junction aliases, and railway zones.
-- 🕒 **Live Indian Railways Timetable**: Real-time stoppage schedules, arrival/departure times, and run days.
-- 🚄 **Live Train Running Status**: Real-time GPS delay tracking, current station updates, and scheduled vs actual platform information.
-- 📱 **PWA & Offline Capability**: Installable as a Progressive Web App on mobile and desktop devices.
-
----
-
-## 💬 Meta WhatsApp Cloud API Integration
-
+### Step 1: Search Trains & Check Live Availability
 <p align="center">
-  <img src="public/images/guide_whatsapp_alert.jpg" alt="WhatsApp & Mobile Alert Delivery" width="100%" style="border-radius: 12px;" />
+  <img src="public/images/search_trains_screen.jpg" alt="SeatScout Train Search Interface" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
 </p>
 
-SeatScout integrates directly with Meta's official WhatsApp Business Cloud API:
-
-1. **Standardized OTP Templates**: Complies with Meta's non-promotional utility templates:
-   ```text
-   Your verification code is: *482019*. Valid for 5 minutes. Do not share this code with anyone.
-   ```
-2. **Instant Delivery**: Sent directly through Meta's high-speed global Graph API (`https://graph.facebook.com/v20.0/...`).
-3. **Resilient User Fallbacks**:
-   - If an invalid token or network error occurs, SeatScout provides clear diagnostic feedback.
-   - Shows an on-screen 6-digit code with a 1-click **"Auto-fill Code"** button for uninterrupted testing.
-   - Provides a direct **WhatsApp Click-to-Chat link** (`https://wa.me/91...`) to open the chat window directly.
+- **Station Autocomplete across 9,000+ Stations**: Type any station name or IRCTC code (e.g., `CDG` for *Chandigarh Junction*, `NDLS` for *New Delhi*).
+- **Popular Corridor Quick-Buttons**: Instant 1-tap presets for busy routes like *Chandigarh → New Delhi*, *Mumbai CSMT → Pune*, *New Delhi → Lucknow*.
+- **Journey Calendar & Quotas**: Full date picker with quota selector (`General (GN)`, `Tatkal (TQ)`, `Senior Citizen (SS)`, `Ladies (LD)`, or `Divyangjan (HP)`).
+- **Live Timetable & Availability Badges**: Real-time departure/arrival times, travel duration, and class tags (`CC`, `EC`, `3A`, `2A`, `1A`, `SL`).
+- **Watch Entire Route Button**: With a single click, launch a corridor-wide radar that monitors **all trains** running on the route on your travel date.
 
 ---
 
-## 🏗️ Architecture & System Flow
+### Step 2: Activate 24/7 Radar Monitoring
+<p align="center">
+  <img src="public/images/guide_radar_screen.jpg" alt="SeatScout 24/7 Radar Dashboard" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
+</p>
+
+- **Server-Side Daemon**: The radar runs in the background on the server (`data/radars.json`). You can safely close your browser or turn off your computer — monitoring continues 24/7.
+- **Adaptive Polling Intervals**:
+  - `> 72 hours`: Relaxed polling.
+  - `24 – 72 hours`: Normal polling.
+  - `6 – 24 hours`: Urgent polling.
+  - `< 6 hours` (Charting Window): **Critical high-speed polling** every 10–15 seconds to catch seats the second they release.
+- **Circuit Breaker & Exponential Backoff**: Resilient gateway protection with automatic retry backoff during upstream PRS maintenance.
+- **Radar Controls**: Pause, Resume, Stop, and Force-Scan actions on any active radar job.
+
+---
+
+### Step 3: Radiant Top-Right Screen Alerts & Desktop Notifications
+<p align="center">
+  <img src="public/images/seat_alert_popup.jpg" alt="SeatScout Top-Right Screen Alert Pop-up" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
+</p>
+
+When seats unlock, SeatScout triggers a **multi-layered notification cascade**:
+
+1. **Top-Right Screen Pop-Up (`InAppNotificationToast.tsx`)**:
+   - Fixed at `top-4 right-4 z-[99999]`, floating above all modals, dialogs, and screens.
+   - Radiant high-contrast card with an animated glowing green border and pulsing beacon.
+   - Shows the train name, route corridor, class, and confirmed berth count (e.g. `CURR_AVBL: 4 Confirmed Berths Available!`).
+   - One-click **"⚡ Book on IRCTC"** button to open the booking page immediately.
+   - **"🎯 View Radar"** button to jump directly to the radar dashboard and highlight the train.
+   - **"🔊 Replay Sound"** button to re-trigger the bell chime.
+   - Hover-aware progress bar: stays visible for 20 seconds and **automatically pauses whenever you hover your mouse over it**.
+
+2. **OS Desktop System Notifications (`sendDesktopNotification`)**:
+   - Dispatches system notifications via `ServiceWorkerRegistration.showNotification()` with `requireInteraction: true`.
+   - **Stays pinned on your screen** in the top-right corner of your desktop/laptop display even when you are reading emails, working in another browser tab, or using another application.
+
+3. **Flashing Browser Tab Indicator (`startTabAlertBadge`)**:
+   - The browser tab title visibly alternates (`🚨 SEATS FOUND! 12012 Shatabdi` ↔ `⚡ SeatScout`), ensuring the tab stands out instantly among dozens of open tabs.
+
+4. **Test Pop-up Alert**:
+   - Click the **"Test Pop-up Alert"** button on the Radar Dashboard at any time to verify the top-right card, sound chime, and desktop notification.
+
+---
+
+### Step 4: Meta WhatsApp & Mobile SMS Alerts
+<p align="center">
+  <img src="public/images/guide_whatsapp_alert.jpg" alt="WhatsApp & Mobile SMS Notifications" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
+</p>
+
+- **Meta WhatsApp Business Cloud API**: Delivers direct WhatsApp messages using approved non-promotional utility templates:
+  ```text
+  Your verification code is: *482019*. Valid for 5 minutes. Do not share this code with anyone.
+  ```
+- **Instant Mobile Alert Message**: The moment berths appear, you receive a direct WhatsApp ping with train number, journey date, travel class, and available seat count.
+- **SMS Gateway Integration**: Built-in support for **Fast2SMS** (India DLT/OTP route) and **Twilio** for global SMS delivery.
+- **Resilient Fallbacks**: If WhatsApp tokens are misconfigured or expire, SeatScout provides an on-screen OTP fallback with an auto-fill button and direct `wa.me` click-to-chat links.
+
+---
+
+### Step 5: Interactive 4-Step Guide
+<p align="center">
+  <img src="public/images/guide_walkthrough_screen.jpg" alt="SeatScout Interactive Guide Section" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);" />
+</p>
+
+- The app includes an interactive onboarding walkthrough accessible from the navigation bar.
+- Guides first-time travelers through:
+  - **1. Stations**: How to choose origin and destination.
+  - **2. Date & Class**: Picking journey dates around charting hours.
+  - **3. Start Radar**: Turning on 24/7 background tracking.
+  - **4. Book Ticket**: Booking confirmed berths the second they release.
+- Includes clear, jargon-free explanations for common questions.
+
+---
+
+## 🏗️ System Architecture
 
 ```
 +-----------------------------------------------------------------------------------+
 |                                  USER BROWSER / CLIENT                             |
 |  - React 19 Frontend (Vite)                                                       |
-|  - In-App Top-Right Toast Card (InAppNotificationToast.tsx)                       |
-|  - Web Audio API Sound Synthesizer (Chime Arpeggios)                              |
-|  - Service Worker (public/sw.js) for Push & Desktop Notifications                 |
+|  - In-App Top-Right Toast Card (InAppNotificationToast.tsx) [z-index: 99999]      |
+|  - Web Audio API Sound Synthesizer (Pure Sine Chime Melodies)                     |
+|  - Service Worker (public/sw.js) for Web Push & Desktop Notifications             |
 |  - Flashing Tab Title Alert Badge (startTabAlertBadge)                            |
 +------------------------------------------+----------------------------------------+
                                            |
@@ -200,27 +213,27 @@ SeatScout integrates directly with Meta's official WhatsApp Business Cloud API:
 ## 🛠️ Tech Stack
 
 - **Frontend**:
-  - React 19 (Hooks, Suspense, Error Boundaries)
-  - Tailwind CSS v4 (Modern CSS-first styling)
-  - Lucide React (Icons)
-  - Motion / Canvas Confetti (Celebratory animations)
-  - Web Audio API (Multi-frequency pure sine wave chime synthesis)
+  - **React 19** (Functional components, hooks, error boundaries)
+  - **Tailwind CSS v4** (Modern utility-first styling with `@import "tailwindcss";`)
+  - **Lucide React** (Clean, consistent iconography)
+  - **Web Audio API** (Four-note melodic sine chime synthesizer: C5 → E5 → G5 → C6)
+  - **Canvas Confetti & Motion** (Celebration animations on seat discovery)
 - **Backend**:
-  - Node.js & Express
-  - `tsx` TypeScript runtime runner
-  - `web-push` (W3C standard push protocol with Base64URL VAPID keys)
-  - `nodemailer` (SMTP transport)
-  - `esbuild` for production bundling
+  - **Node.js & Express** (Modular REST API routing)
+  - **`tsx`** (Modern TypeScript execution engine)
+  - **`web-push`** (W3C standard push protocol with Base64URL VAPID validation)
+  - **`nodemailer`** (SMTP email delivery for detailed berth dossiers)
+  - **`esbuild`** (High-speed production server bundling into `dist/server.cjs`)
 - **AI & Data Intelligence**:
-  - Google Gemini API (`@google/genai`) for charting analysis and booking intelligence
-- **APIs & Data Feeds**:
+  - **Google Gemini API (`@google/genai`)**: Predicts charting times, analyzes confirmation chances, and recommends Tatkal vs. Current Booking strategies.
+- **Data Feeds & Gateways**:
   - Live Indian Railways PRS & CRIS timetable data
   - Meta WhatsApp Business Graph API v20.0
   - Fast2SMS & Twilio SMS gateways
 
 ---
 
-## ⚡ Getting Started (Local Setup)
+## ⚡ Getting Started (Local Development)
 
 ### 1. Clone the Repository
 ```bash
@@ -233,14 +246,14 @@ cd SeatScout
 npm install
 ```
 
-### 3. Set Up Environment Variables
-Create a `.env` file from `.env.example`:
+### 3. Create Environment Configuration
+Copy the example environment template:
 ```bash
 cp .env.example .env
 ```
-Populate the required keys (see the configuration guide below).
+Open `.env` and fill in your keys (see configuration guide below).
 
-### 4. Launch the Dev Server
+### 4. Run Development Server
 ```bash
 npm run dev
 ```
@@ -249,43 +262,79 @@ Open **`http://localhost:3000`** in your browser.
 
 ---
 
-## ⚙️ Configuration Guide (.env)
+## ⚙️ Environment Configuration (.env Guide)
 
-| Variable | Required | Description | Example |
-|---|---|---|---|
-| `GEMINI_API_KEY` | Optional | Google Gemini API key for AI charting advice & waitlist prediction. | `AIzaSy...` |
-| `APP_URL` | Optional | Application base URL (used for notification links). | `http://localhost:3000` |
-| `META_WHATSAPP_TOKEN` | Optional | Meta Graph API bearer access token for WhatsApp notifications. | `EAA...` |
-| `META_PHONE_NUMBER_ID` | Optional | WhatsApp Business Account phone number ID from Meta App Dashboard. | `105928372619283` |
-| `WHATSAPP_TEMPLATE_NAME` | Optional | Approved Meta template name for OTP messaging. | `otp_verification` |
-| `WHATSAPP_TEMPLATE_LANG` | Optional | Language code for WhatsApp template. | `en_US` |
-| `FAST2SMS_API_KEY` | Optional | API key for Indian SMS delivery via Fast2SMS. | `f2s_...` |
-| `TWILIO_ACCOUNT_SID` | Optional | Twilio account SID for global SMS alerts. | `AC...` |
-| `TWILIO_AUTH_TOKEN` | Optional | Twilio authentication token. | `auth_...` |
-| `TWILIO_PHONE_NUMBER` | Optional | Registered Twilio phone number. | `+1234567890` |
-| `SMTP_HOST` | Optional | SMTP mail host for email dossiers. | `smtp.gmail.com` |
-| `SMTP_PORT` | Optional | SMTP mail port (default: 587). | `587` |
-| `SMTP_USER` | Optional | SMTP username / email address. | `your_email@gmail.com` |
-| `SMTP_PASS` | Optional | SMTP password or app-specific password. | `xxxx xxxx xxxx xxxx` |
-| `ALERT_FROM_EMAIL` | Optional | From email address for sent dossiers. | `alerts@seatscout.in` |
+```env
+# 1. Google Gemini API Key (For AI Charting & Strategy Advice)
+GEMINI_API_KEY="your_gemini_api_key_here"
 
-*(Note: If optional notification credentials are not provided, SeatScout gracefully logs alerts to the console and displays rich in-app UI notifications without crashing).*
+# 2. Application Base URL
+APP_URL="http://localhost:3000"
+
+# 3. Meta WhatsApp Cloud API (For real WhatsApp notifications)
+# Obtain from https://developers.facebook.com/apps > WhatsApp > API Setup
+META_WHATSAPP_TOKEN="EAA..."
+META_PHONE_NUMBER_ID="105928372619283"
+WHATSAPP_TEMPLATE_NAME="otp_verification"
+WHATSAPP_TEMPLATE_LANG="en_US"
+
+# 4. SMS Gateway: Fast2SMS (India DLT/OTP Route)
+FAST2SMS_API_KEY="f2s_..."
+
+# 5. SMS Gateway: Twilio (Optional Global Route)
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_PHONE_NUMBER=
+
+# 6. Long-form Email Alerts (SMTP via Nodemailer)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_password
+ALERT_FROM_EMAIL=alerts@seatscout.in
+```
+
+*(Note: All notification services degrade gracefully. If optional credentials are not provided, SeatScout displays rich in-app UI notifications without crashing).*
 
 ---
 
-## 📦 Production Deployment
+## 🚀 Automated CI/CD & EC2 Deployment
 
-### Build the Application
-```bash
-npm run build
+SeatScout includes a preconfigured **GitHub Actions CI/CD pipeline** in `.github/workflows/main.yml`.
+
+### Deployment Pipeline Workflow
+Whenever changes are pushed to the `main` branch, GitHub Actions executes:
+1. **SSH Authentication**: Connects securely to your AWS EC2 host using repository secrets (`EC2_SSH_KEY`, `EC2_HOST`, `EC2_USER`).
+2. **Automated Deploy Script**: Executes `~/deploy.sh` on the remote instance.
+3. **Zero-Downtime Reload**: Installs dependencies, runs `npm run build`, and restarts the server process with PM2.
+
+```yaml
+name: Deploy SeatScout
+on:
+  push:
+    branches: [ main ]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+      - name: Deploy to EC2
+        run: ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "~/deploy.sh"
 ```
-This builds the client application with Vite and bundles the Express server into `dist/server.cjs`.
 
-### Start the Production Server
+### Manual Production Build
 ```bash
+# Build Vite client & bundle Express server with esbuild
+npm run build
+
+# Start production server on port 3000
 npm start
 ```
-The server will bind to port `3000` (or `process.env.PORT`).
 
 ---
 
@@ -294,22 +343,22 @@ The server will bind to port `3000` (or `process.env.PORT`).
 ### Radar Endpoints
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/radar/list?clientId=...` | List all active and past radars for a client device. |
+| `GET` | `/api/radar/list?clientId=...` | List all active and completed radars for a client device. |
 | `POST` | `/api/radar/create` | Create a new Single Train or Route Corridor radar job. |
-| `POST` | `/api/radar/:id/pause` | Pause an active background radar job. |
-| `POST` | `/api/radar/:id/resume` | Resume a paused background radar job. |
+| `POST` | `/api/radar/:id/pause` | Pause an active background radar. |
+| `POST` | `/api/radar/:id/resume` | Resume a paused radar. |
 | `POST` | `/api/radar/:id/stop` | Stop monitoring and mark radar as cancelled. |
 | `DELETE` | `/api/radar/:id` | Delete radar job and remove from history. |
-| `POST` | `/api/radar/:id/scan` | Force an immediate PRS availability scan for a radar. |
+| `POST` | `/api/radar/:id/scan` | Force an immediate PRS availability check for a radar. |
 | `GET` | `/api/radar/vapid-public-key` | Return valid 65-byte Base64URL VAPID public key. |
 | `POST` | `/api/radar/push/subscribe` | Register browser push subscription for a client device. |
 | `POST` | `/api/radar/push/test` | Trigger a test web push notification to client device. |
 
-### Train & Corridor Endpoints
+### Train & Timetable Endpoints
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/trains/search` | Search trains between two IRCTC station codes. |
-| `GET` | `/api/trains/availability` | Fetch live berth availability and class status. |
+| `GET` | `/api/trains/availability` | Fetch live berth availability across classes and dates. |
 | `GET` | `/api/trains/livestatus` | Real-time train delay, platform number, and live running status. |
 | `POST` | `/api/ai/predict-charting` | Gemini AI charting time and Current Booking berth prediction. |
 
@@ -335,6 +384,9 @@ The server will bind to port `3000` (or `process.env.PORT`).
 
 #### Q: Can I monitor multiple trains on a route at once?
 **A:** Yes! Tap **"Watch Entire Route"** on any search result to monitor every single train running on that corridor on your travel date.
+
+#### Q: Is booking done through IRCTC?
+**A:** Yes. SeatScout never asks for your IRCTC passwords or financial credentials. The alert pop-up provides a direct 1-click deep link to the official IRCTC portal pre-filled with your journey details so you can complete payment safely.
 
 ---
 
