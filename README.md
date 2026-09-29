@@ -4,13 +4,42 @@
 
 It allows users to search train availability and monitor routes for changes in availability, with background monitoring and notifications designed around the `CURR_AVBL` availability information.
 
-🌐 **Live Website:** http://seatscout.duckdns.org/
+## 🌐 Live Deployments
+
+### ☁️ AWS EC2 Deployment
+
+**Primary deployment:**
+
+http://seatscout.duckdns.org/
+
+This deployment runs on an **AWS EC2 instance** with Nginx, Node.js, systemd, and DuckDNS.
+
+### 🤖 AI Studio / Cloud Run Deployment
+
+**Secondary / fallback deployment:**
+
+https://seatscout-90983624846.us-west1.run.app
+
+This deployment can be used when the AWS EC2 instance is unavailable, for example when the EC2 instance is stopped because of **free-tier credit/resource limitations**.
+
+```text
+Primary:
+AWS EC2
+   ↓
+seatscout.duckdns.org
+
+Fallback:
+AI Studio / Cloud Run
+   ↓
+seatscout-90983624846.us-west1.run.app
+```
 
 ---
 
 ## 📌 Table of Contents
 
 * [Overview](#-overview)
+* [Live Deployments](#-live-deployments)
 * [Key Features](#-key-features)
 * [How SeatScout Works](#-how-seatscout-works)
 * [Architecture](#-architecture)
@@ -30,6 +59,7 @@ It allows users to search train availability and monitor routes for changes in a
 * [Environment Variables](#-environment-variables)
 * [Deployment Flow](#-deployment-flow)
 * [Monitoring and Logs](#-monitoring-and-logs)
+* [Troubleshooting](#-troubleshooting)
 * [Future Improvements](#-future-improvements)
 
 ---
@@ -49,8 +79,7 @@ The project is not only about building a web application. It also demonstrates h
 7. Exposed through a domain using DuckDNS
 8. Automatically deployed using GitHub Actions
 9. Continuously monitored through background workers
-
-The application runs as a Node.js server behind Nginx on an **Amazon Linux 2023 EC2 instance**.
+10. Made available through a secondary Cloud Run deployment when EC2 is unavailable
 
 ---
 
@@ -76,8 +105,6 @@ The **Radar** feature is designed for continuous monitoring.
 
 Instead of manually checking train availability repeatedly, a user can create a monitoring requirement and SeatScout's background worker can periodically check the required route.
 
-Conceptually:
-
 ```text
 User creates Radar
         ↓
@@ -99,8 +126,6 @@ This turns SeatScout from a simple search application into a **monitoring system
 ## 🔔 Notifications
 
 The monitoring system is designed to notify users when monitored seat availability changes.
-
-Example:
 
 ```text
 No Seat Available
@@ -124,8 +149,6 @@ SeatScout also considers railway quota-related availability, including support a
 * Lower berth requirements
 * General availability
 
-The application distinguishes between relevant quota/availability information instead of treating every availability result as identical.
-
 ---
 
 ## 🚉 Indian Railway Station Search
@@ -133,8 +156,6 @@ The application distinguishes between relevant quota/availability information in
 SeatScout contains an in-memory station index containing approximately:
 
 **8,967 Indian Railway stations**
-
-This allows station-related operations to be handled efficiently without repeatedly rebuilding the station index for every request.
 
 Startup log:
 
@@ -147,8 +168,6 @@ Startup log:
 ## ⚙️ 24/7 Background Monitoring Worker
 
 SeatScout includes a background Radar scheduler.
-
-The production server starts the monitoring worker automatically:
 
 ```text
 [RadarScheduler] Started 24/7 background seat monitoring worker
@@ -174,7 +193,7 @@ At a high level:
                           │
                           ▼
                  ┌─────────────────┐
-                 │  Nginx / HTTPS  │
+                 │  Public Endpoint│
                  └────────┬────────┘
                           │
                           ▼
@@ -202,7 +221,7 @@ At a high level:
 
 # 🏗️ Architecture
 
-## Production Architecture
+## AWS EC2 Production Architecture
 
 ```text
                          INTERNET
@@ -237,9 +256,37 @@ At a high level:
 
 ---
 
+# ☁️ Dual Deployment Architecture
+
+SeatScout currently has two accessible deployment endpoints:
+
+```text
+                         SEATSCOUT
+                             │
+                ┌────────────┴────────────┐
+                │                         │
+                ▼                         ▼
+          AWS EC2 Deployment       Cloud Run Deployment
+                │                         │
+                ▼                         ▼
+     seatscout.duckdns.org     seatscout-90983624846.
+                               us-west1.run.app
+                │                         │
+                ▼                         ▼
+             Nginx                    Cloud Run
+                │                         │
+                ▼                         ▼
+            Node.js                  SeatScout App
+             :3000
+```
+
+The AWS deployment demonstrates the **hands-on DevOps infrastructure**, while the Cloud Run deployment provides an alternate way to access the application.
+
+---
+
 # 🔄 Application Flow
 
-A typical request follows this path:
+For the AWS deployment:
 
 ```text
 Browser
@@ -262,7 +309,17 @@ SeatScout Application
    └── Notification Logic
 ```
 
-Nginx acts as the public-facing entry point while the Node.js application runs internally on port `3000`.
+For the Cloud Run deployment:
+
+```text
+Browser
+   │
+   ▼
+Cloud Run URL
+   │
+   ▼
+SeatScout Application
+```
 
 ---
 
@@ -296,17 +353,11 @@ Monitoring            │
                  Notification
 ```
 
-The monitoring worker runs independently from the web request/response cycle.
-
-This allows SeatScout to continue checking routes even when the user is not actively using the website.
-
 ---
 
 # 🚉 Railway Station System
 
 SeatScout loads railway station data into memory when the server starts.
-
-Current startup behavior:
 
 ```text
 Application starts
@@ -319,8 +370,6 @@ In-memory station index created
        ↓
 Application starts accepting requests
 ```
-
-This provides fast station lookup during application usage.
 
 ---
 
@@ -341,13 +390,14 @@ This provides fast station lookup during application usage.
 * Compiled application output
 * `dist/server.cjs`
 
-## DevOps / Deployment
+## Cloud & DevOps
 
 * AWS EC2
 * Amazon Linux 2023
 * Nginx
 * systemd
 * DuckDNS
+* Google Cloud Run
 * Git
 * GitHub
 * GitHub Actions
@@ -364,8 +414,6 @@ This provides fast station lookup during application usage.
 ---
 
 # 📁 Project Structure
-
-A simplified representation of the project:
 
 ```text
 SeatScout/
@@ -398,57 +446,17 @@ SeatScout/
 
 ---
 
-# ☁️ Deployment Architecture
-
-SeatScout is hosted on an **AWS EC2 instance running Amazon Linux 2023**.
-
-The production setup can be represented as:
-
-```text
-                      GitHub
-                        │
-                        │ git push
-                        ▼
-                ┌─────────────────┐
-                │ GitHub Actions  │
-                └────────┬────────┘
-                         │
-                         │ SSH
-                         ▼
-                  ┌───────────────┐
-                  │ AWS EC2       │
-                  │ Amazon Linux  │
-                  └───────┬───────┘
-                          │
-                 ┌────────┴────────┐
-                 │                 │
-                 ▼                 ▼
-              Nginx             systemd
-                 │                 │
-                 │                 ▼
-                 │          SeatScout Service
-                 │                 │
-                 │                 ▼
-                 │             Node.js
-                 │              :3000
-                 │
-                 ▼
-        seatscout.duckdns.org
-```
-
----
-
 # ☁️ EC2 Infrastructure
 
-The current production environment uses:
+The AWS deployment uses:
 
 ```text
-Cloud Provider : AWS
-Service        : EC2
+Cloud Provider  : AWS
+Service         : EC2
 Operating System: Amazon Linux 2023
-Node.js        : v22.23.2
+Node.js         : v22.23.2
 Application Port: 3000
-Reverse Proxy  : Nginx
+Reverse Proxy   : Nginx
 ```
 
 The Node.js application listens internally on:
@@ -457,15 +465,9 @@ The Node.js application listens internally on:
 0.0.0.0:3000
 ```
 
-Nginx receives public web traffic and forwards it to the application.
-
 ---
 
 # 🌐 Nginx Reverse Proxy
-
-Nginx provides the public entry point for SeatScout.
-
-Conceptually:
 
 ```text
 Internet
@@ -477,9 +479,7 @@ Nginx :80 / :443
 Node.js :3000
 ```
 
-Instead of exposing the Node.js application directly to users, Nginx forwards requests internally.
-
-Example architecture:
+Example:
 
 ```text
 http://seatscout.duckdns.org
@@ -500,9 +500,7 @@ http://seatscout.duckdns.org
 
 SeatScout uses Linux `systemd` to manage production processes.
 
-## SeatScout Application Service
-
-Service:
+## SeatScout Application
 
 ```text
 seatscout.service
@@ -511,75 +509,31 @@ seatscout.service
 Purpose:
 
 * Start the SeatScout server automatically
-* Restart/manage the application process
-* Allow the application to run as a background service
+* Manage the application process
+* Keep the application running as a background service
 * Start the application after EC2 reboot
-
-Conceptually:
-
-```text
-EC2 starts
-   ↓
-systemd starts
-   ↓
-seatscout.service
-   ↓
-Node.js server starts
-   ↓
-SeatScout available on :3000
-```
 
 ---
 
 ## DuckDNS Update Service
 
-Another service is used for IP mapping:
-
 ```text
 duckdns-update.service
 ```
 
-Its purpose is to update DuckDNS whenever the EC2 public IP changes.
-
-The associated script:
+Associated script:
 
 ```text
 update-duckdns.sh
 ```
 
-updates the DuckDNS record using the current EC2 public IP.
+Its purpose is to update DuckDNS with the current EC2 public IP.
 
 ---
 
 # 🌍 DuckDNS IP Mapping
 
-The original EC2 setup uses a public IPv4 address that can change when the instance is stopped and started.
-
-For example:
-
-```text
-Before restart:
-
-EC2 Public IP
-     ↓
-13.x.x.x
-     ↓
-seatscout.duckdns.org
-```
-
-After an instance restart:
-
-```text
-New EC2 Public IP
-     ↓
-54.x.x.x
-     ↓
-DuckDNS record must be updated
-```
-
-SeatScout handles this automatically using the DuckDNS update service.
-
-## Current Flow
+The EC2 public IPv4 address can change after a stop/start cycle.
 
 ```text
 EC2 boots
@@ -609,9 +563,7 @@ This removes the need to manually update the DNS record after every EC2 restart.
 
 # 🔐 CI/CD with GitHub Actions
 
-The project is designed around a GitHub-based deployment workflow.
-
-The basic idea is:
+The project uses GitHub as the central source-code repository and GitHub Actions as the foundation for automated deployment.
 
 ```text
 Developer
@@ -648,14 +600,12 @@ GitHub Actions
 
 # 🔑 GitHub Actions SSH Authentication
 
-The deployment architecture uses SSH authentication so GitHub Actions can connect securely to the EC2 server.
-
-The general flow is:
+GitHub Actions connects to EC2 using SSH authentication.
 
 ```text
 GitHub Actions
       │
-      │ SSH Private Key
+      │ SSH
       ▼
 AWS EC2
       │
@@ -663,15 +613,9 @@ AWS EC2
 Deployment Commands
 ```
 
-The private key must **never be committed to GitHub**.
+Private keys and credentials should be stored in **GitHub Secrets**, never committed to the repository.
 
-Sensitive values should be stored using:
-
-```text
-GitHub Repository Secrets
-```
-
-Examples of secrets that may be used:
+Possible secret names:
 
 ```text
 EC2_HOST
@@ -679,13 +623,9 @@ EC2_USER
 EC2_SSH_KEY
 ```
 
-Actual secret values should not appear inside source code or the README.
-
 ---
 
 # 🚀 Deployment Flow
-
-The intended automated deployment process is:
 
 ```text
 1. Developer changes code
@@ -700,7 +640,7 @@ The intended automated deployment process is:
           ↓
 6. Repository is checked out
           ↓
-7. GitHub Actions connects to EC2 using SSH
+7. GitHub Actions connects to EC2
           ↓
 8. Latest code is deployed
           ↓
@@ -714,40 +654,6 @@ The intended automated deployment process is:
           ↓
 13. SeatScout is updated
 ```
-
-The goal is to reduce manual commands on EC2 after every GitHub push.
-
----
-
-# 🔄 Git Workflow
-
-Typical local workflow:
-
-```bash
-git status
-```
-
-Check changed files.
-
-```bash
-git add .
-```
-
-Stage changes.
-
-```bash
-git commit -m "Update SeatScout"
-```
-
-Create a commit.
-
-```bash
-git push origin main
-```
-
-Push changes to GitHub.
-
-After a successful CI/CD workflow, the latest version can be deployed to EC2 automatically.
 
 ---
 
@@ -766,7 +672,7 @@ Install dependencies:
 npm install
 ```
 
-Run the development environment using the project's configured npm scripts.
+Run the configured development script from `package.json`.
 
 For example:
 
@@ -780,13 +686,11 @@ or:
 npm start
 ```
 
-depending on the current `package.json` configuration.
-
 ---
 
 # 🔐 Environment Variables
 
-Sensitive configuration should be stored outside the Git repository.
+Sensitive configuration should never be committed to GitHub.
 
 Examples:
 
@@ -797,28 +701,11 @@ DUCKDNS_TOKEN=
 NODE_ENV=production
 ```
 
-Never commit secrets such as:
-
-* API keys
-* Passwords
-* SSH private keys
-* Access tokens
-* Cloud credentials
-* Database credentials
-
-Use:
-
-```text
-.env
-```
-
-and make sure sensitive files are included in `.gitignore`.
+Sensitive files should be included in `.gitignore`.
 
 ---
 
 # 🚫 .gitignore
-
-Sensitive and generated files should not be pushed to GitHub.
 
 Typical examples:
 
@@ -832,39 +719,35 @@ dist/
 *.key
 ```
 
-The exact `.gitignore` should match the project's actual build and deployment requirements.
-
 ---
 
 # 📊 Production Process Management
 
-Useful commands on EC2:
-
-## Check SeatScout service
+Check SeatScout:
 
 ```bash
 sudo systemctl status seatscout.service
 ```
 
-## Restart SeatScout
+Restart:
 
 ```bash
 sudo systemctl restart seatscout.service
 ```
 
-## Start SeatScout
+Start:
 
 ```bash
 sudo systemctl start seatscout.service
 ```
 
-## Stop SeatScout
+Stop:
 
 ```bash
 sudo systemctl stop seatscout.service
 ```
 
-## Enable at boot
+Enable at boot:
 
 ```bash
 sudo systemctl enable seatscout.service
@@ -874,9 +757,7 @@ sudo systemctl enable seatscout.service
 
 # 📜 Logs
 
-SeatScout logs can be inspected through `journalctl`.
-
-View recent application logs:
+View recent SeatScout logs:
 
 ```bash
 sudo journalctl -u seatscout.service -n 100
@@ -888,23 +769,17 @@ Follow logs live:
 sudo journalctl -u seatscout.service -f
 ```
 
-View DuckDNS service logs:
+DuckDNS logs:
 
 ```bash
 sudo journalctl -u duckdns-update.service -n 100
-```
-
-Follow DuckDNS logs:
-
-```bash
-sudo journalctl -u duckdns-update.service -f
 ```
 
 ---
 
 # 🔍 Troubleshooting
 
-## Check whether Node.js is running
+## Check Node.js
 
 ```bash
 ps aux | grep node
@@ -916,13 +791,13 @@ ps aux | grep node
 sudo ss -ltnp | grep 3000
 ```
 
-## Test the application locally on EC2
+## Test application locally
 
 ```bash
 curl http://localhost:3000
 ```
 
-## Check Nginx status
+## Check Nginx
 
 ```bash
 sudo systemctl status nginx
@@ -944,7 +819,7 @@ sudo systemctl restart nginx
 
 # ⚠️ EADDRINUSE / Port Already in Use
 
-One issue encountered during deployment was:
+One issue encountered during development was:
 
 ```text
 Error: EADDRINUSE: address already in use 0.0.0.0:3000
@@ -952,7 +827,7 @@ Error: EADDRINUSE: address already in use 0.0.0.0:3000
 
 This means another process is already listening on port `3000`.
 
-Check the process:
+Check:
 
 ```bash
 sudo ss -ltnp | grep 3000
@@ -964,7 +839,7 @@ or:
 sudo lsof -i :3000
 ```
 
-When using systemd, the preferred approach is to manage the application through:
+When using systemd, manage the application through:
 
 ```bash
 sudo systemctl restart seatscout.service
@@ -974,108 +849,19 @@ rather than manually starting multiple Node.js processes.
 
 ---
 
-# 🧱 Current Production Architecture Summary
-
-```text
-                     USER
-                       │
-                       ▼
-              seatscout.duckdns.org
-                       │
-                       ▼
-                    Nginx
-                       │
-                       ▼
-                Node.js :3000
-                       │
-         ┌─────────────┴─────────────┐
-         │                           │
-         ▼                           ▼
-    SeatScout App              Radar Scheduler
-         │                           │
-         ▼                           ▼
- Station Service              Availability Checks
-         │                           │
-         ▼                           ▼
- ~8967 stations                 Notifications
-
-
-       AWS EC2 / Amazon Linux 2023
-                    │
-          ┌─────────┴─────────┐
-          │                   │
-          ▼                   ▼
- seatscout.service     duckdns-update.service
-          │                   │
-          ▼                   ▼
-     Node.js App         update-duckdns.sh
-                              │
-                              ▼
-                     Current EC2 Public IP
-                              │
-                              ▼
-                      DuckDNS DNS Record
-
-
-                    GitHub
-                      │
-                      ▼
-                GitHub Actions
-                      │
-                      ▼
-                 SSH to EC2
-                      │
-                      ▼
-               Automated Deployment
-```
-
----
-
-# 🧩 Why This Architecture?
-
-The project demonstrates several important DevOps concepts together:
-
-### Application
-
-SeatScout provides the actual business functionality for railway seat monitoring.
-
-### Nginx
-
-Nginx acts as a reverse proxy and provides the public web entry point.
-
-### Node.js
-
-The SeatScout backend runs as a Node.js service on port `3000`.
-
-### systemd
-
-systemd keeps the application running and allows it to start automatically after a server reboot.
-
-### DuckDNS
-
-DuckDNS provides a domain name that can be updated when the EC2 public IP changes.
-
-### GitHub
-
-GitHub provides source-code management and version control.
-
-### GitHub Actions
-
-GitHub Actions provides the foundation for automated CI/CD.
-
-### AWS EC2
-
-EC2 provides the production compute environment.
-
-Together, these components create a complete development-to-production workflow.
-
----
-
 # 🗺️ Future Infrastructure Improvement
 
-The current architecture uses **DuckDNS + automatic public-IP mapping**.
+The current AWS setup uses:
 
-A future production-oriented architecture can replace this with:
+```text
+EC2
+  ↓
+Changing Public IP
+  ↓
+DuckDNS
+```
+
+A future AWS-oriented production architecture could use:
 
 ```text
                     Route 53
@@ -1090,31 +876,27 @@ A future production-oriented architecture can replace this with:
                  Node.js App
                        │
                        ▼
-                 AWS EC2 / ECS
+                  AWS Compute
 ```
 
-Possible improvements include:
+Potential improvements:
 
-* AWS Elastic IP
-* Route 53 DNS
+* Elastic IP
+* Route 53
 * HTTPS with SSL/TLS
-* Docker containerization
+* Docker
 * Amazon ECR
 * ECS / Kubernetes
 * Application Load Balancer
-* CloudWatch monitoring
+* CloudWatch
 * Centralized logging
 * Auto Scaling
 * Infrastructure as Code
-* GitHub Actions with stronger deployment strategies
-
-The important architectural improvement is eliminating dependency on a changing EC2 public IP.
+* Automated rollback
 
 ---
 
 # 🔮 Future Improvements
-
-Potential next steps for SeatScout include:
 
 ```text
 ✔ HTTPS
@@ -1125,7 +907,6 @@ Potential next steps for SeatScout include:
 ✔ ECS / Kubernetes
 ✔ Better notification system
 ✔ Database-backed Radar persistence
-✔ Improved monitoring
 ✔ CloudWatch integration
 ✔ Health checks
 ✔ Automated rollback
@@ -1139,7 +920,7 @@ Potential next steps for SeatScout include:
 
 SeatScout started as a railway seat availability application and evolved into a practical **DevOps deployment project**.
 
-The project demonstrates the complete journey:
+The overall journey:
 
 ```text
 Code
@@ -1163,6 +944,18 @@ Nginx
 DuckDNS
   ↓
 🌐 Live Application
+```
+
+With a secondary deployment:
+
+```text
+SeatScout
+   │
+   ├── AWS EC2
+   │      └── http://seatscout.duckdns.org/
+   │
+   └── Cloud Run
+          └── https://seatscout-90983624846.us-west1.run.app
 ```
 
 ---
@@ -1189,10 +982,16 @@ DevOps
 
 ---
 
-## 🌐 Live Project
+# 🌐 Project Links
 
-**SeatScout:** http://seatscout.duckdns.org/
+### Primary AWS Deployment
 
-⭐ Star the repository if you find the project useful.
+http://seatscout.duckdns.org/
+
+### Secondary Cloud Run Deployment
+
+https://seatscout-90983624846.us-west1.run.app
 
 ---
+
+## ⭐ **SeatScout** is a practical demonstration of taking an application from local development all the way to cloud deployment and automated DevOps infrastructure.
