@@ -77,6 +77,30 @@ export class RadarApiService {
     return !!data.success;
   }
 
+  public static async deleteRadarsBatch(ids: string[]): Promise<number> {
+    if (!ids || ids.length === 0) return 0;
+    const res = await fetch('/api/radar/delete-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return data.count || 0;
+  }
+
+  public static async deleteAllRadars(type: 'ACTIVE' | 'HISTORY' | 'ALL' = 'ALL'): Promise<number> {
+    const clientId = getClientId();
+    const res = await fetch('/api/radar/delete-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId, type })
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return data.count || 0;
+  }
+
   public static async getRadarTrains(id: string): Promise<{ monitoredTrains: MonitoredTrainStatus[]; foundSeatInfo?: any }> {
     const res = await fetch(`/api/radar/${id}/trains`);
     if (!res.ok) throw new Error('Failed to fetch radar trains');

@@ -327,6 +327,31 @@ radarRouter.get('/:id/trains', (req, res) => {
 });
 
 /**
+ * POST /api/radar/delete-batch
+ * Delete multiple radars simultaneously by IDs
+ */
+radarRouter.post('/delete-batch', (req, res) => {
+  const { ids } = req.body;
+  if (!ids || !Array.isArray(ids)) {
+    return res.status(400).json({ error: 'ids array required' });
+  }
+  const count = RadarStore.deleteRadarsBatch(ids);
+  console.log(`[RadarAPI] Batch deleted ${count} radars`);
+  res.json({ success: true, count });
+});
+
+/**
+ * POST /api/radar/delete-all
+ * Delete all radars for client (can filter by type: 'ACTIVE' | 'HISTORY' | 'ALL')
+ */
+radarRouter.post('/delete-all', (req, res) => {
+  const { clientId, type = 'ALL' } = req.body;
+  const count = RadarStore.deleteAllRadarsForClient(clientId, type);
+  console.log(`[RadarAPI] Deleted all ${type} radars for client ${clientId}: ${count} deleted`);
+  res.json({ success: true, count });
+});
+
+/**
  * DELETE /api/radar/:id
  */
 radarRouter.delete('/:id', (req, res) => {

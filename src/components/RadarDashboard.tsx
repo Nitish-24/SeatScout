@@ -21,7 +21,8 @@ import {
   Sparkles,
   Search,
   ArrowRight,
-  Smartphone
+  Smartphone,
+  Check
 } from 'lucide-react';
 import { ServerRadarJob, MonitoredTrainStatus } from '../types';
 import { RadarApiService } from '../services/radarApiService';
@@ -51,6 +52,8 @@ interface RadarDashboardProps {
   highlightRadarId?: string | null;
   onOpenPhoneModal?: () => void;
   onDeleteRadar?: (id: string) => void;
+  onDeleteBatch?: (ids: string[]) => void;
+  onDeleteAll?: (type: 'ACTIVE' | 'HISTORY' | 'ALL') => void;
   onOpenAlertModal?: (radar: ServerRadarJob) => void;
 }
 
@@ -62,11 +65,20 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
   highlightRadarId = null,
   onOpenPhoneModal,
   onDeleteRadar,
+  onDeleteBatch,
+  onDeleteAll,
   onOpenAlertModal
 }) => {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'HISTORY'>('ACTIVE');
   const [viewTrainsModalRadar, setViewTrainsModalRadar] = useState<ServerRadarJob | null>(null);
   const [isScanningId, setIsScanningId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmModal, setConfirmModal] = useState<{
+    type: 'SELECTED' | 'ALL';
+    count: number;
+    targetTab: 'ACTIVE' | 'HISTORY';
+  } | null>(null);
+  const [isDeletingBulk, setIsDeletingBulk] = useState<boolean>(false);
   const [pushStatus, setPushStatus] = useState<{ supported: boolean; permission: NotificationPermission; subscribed: boolean }>({
     supported: false,
     permission: 'default',
@@ -117,6 +129,7 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
 
   const handleDeleteRadar = async (id: string) => {
     try {
+      setSelectedIds((prev) => prev.filter((x) => x !== id));
       if (onDeleteRadar) {
         onDeleteRadar(id);
       } else {
@@ -142,6 +155,70 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
 
   const activeRadars = radars.filter((r) => r.status === 'ACTIVE' || r.status === 'PAUSED' || r.status === 'SEAT_FOUND');
   const historyRadars = radars.filter((r) => r.status === 'STOPPED' || r.status === 'EXPIRED');
+
+  const currentTabRadars = activeTab === 'ACTIVE' ? activeRadars : historyRadars;
+  const currentTabSelectedIds = currentTabRadars.map((r) => r.id).filter((id) => selectedIds.includes(id));
+  const isAllSelected = currentTabRadars.length > 0 && currentTabSelectedIds.length === currentTabRadars.length;
+  const hasSomeSelected = currentTabSelectedIds.length > 0;
+
+  const handleToggleSelectOne = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      const currentIdSet = new Set(currentTabRadars.map((r) => r.id));
+      setSelectedIds((prev) => prev.filter((id) => !currentIdSet.has(id)));
+    } else {
+      const currentIds = currentTabRadars.map((r) => r.id);
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...currentIds])));
+    }
+  };
+
+  const handleClearSelection = () => {
+    const currentIdSet = new Set(currentTabRadars.map((r) => r.id));
+    setSelectedIds((prev) => prev.filter((id) => !currentIdSet.has(id)));
+  };
+
+  const handleExecuteDeleteSelected = async () => {
+    if (currentTabSelectedIds.length === 0) return;
+    setIsDeletingBulk(true);
+    try {
+      if (onDeleteBatch) {
+        onDeleteBatch(currentTabSelectedIds);
+      } else {
+        await RadarApiService.deleteRadarsBatch(currentTabSelectedIds);
+        onRefreshRadars();
+      }
+      setSelectedIds((prev) => prev.filter((id) => !currentTabSelectedIds.includes(id)));
+    } catch (err) {
+      console.error('Failed to batch delete radars:', err);
+    } finally {
+      setIsDeletingBulk(false);
+      setConfirmModal(null);
+    }
+  };
+
+  const handleExecuteDeleteAll = async (targetTab: 'ACTIVE' | 'HISTORY') => {
+    setIsDeletingBulk(true);
+    try {
+      if (onDeleteAll) {
+        onDeleteAll(targetTab);
+      } else {
+        await RadarApiService.deleteAllRadars(targetTab);
+        onRefreshRadars();
+      }
+      const targetIdSet = new Set((targetTab === 'ACTIVE' ? activeRadars : historyRadars).map((r) => r.id));
+      setSelectedIds((prev) => prev.filter((id) => !targetIdSet.has(id)));
+    } catch (err) {
+      console.error('Failed to delete all radars:', err);
+    } finally {
+      setIsDeletingBulk(false);
+      setConfirmModal(null);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -250,6 +327,92 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
         </button>
       </div>
 
+      {/* Bulk Management Toolbar (Select Multiple & Delete All) */}
+      {currentTabRadars.length > 0 && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-md">
+          {/* Left: Select All Checkbox + Count */}
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={handleToggleSelectAll}
+              className="flex items-center space-x-2 text-xs font-bold text-slate-200 hover:text-white cursor-pointer group"
+            >
+              <div
+                className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
+                  isAllSelected
+                    ? 'bg-blue-600 border-blue-500 text-white'
+                    : hasSomeSelected
+                    ? 'bg-blue-600/30 border-blue-500 text-blue-400'
+                    : 'bg-slate-950 border-slate-700 group-hover:border-slate-500 text-transparent'
+                }`}
+              >
+                {isAllSelected ? (
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                ) : hasSomeSelected ? (
+                  <span className="w-2.5 h-0.5 bg-blue-400 rounded-full" />
+                ) : null}
+              </div>
+              <span>
+                {isAllSelected ? 'Deselect All' : `Select All (${currentTabRadars.length})`}
+              </span>
+            </button>
+
+            {hasSomeSelected && (
+              <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[11px] font-bold">
+                {currentTabSelectedIds.length} selected
+              </span>
+            )}
+          </div>
+
+          {/* Right: Actions */}
+          <div className="flex items-center space-x-2">
+            {hasSomeSelected && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConfirmModal({
+                      type: 'SELECTED',
+                      count: currentTabSelectedIds.length,
+                      targetTab: activeTab
+                    })
+                  }
+                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer active:scale-95"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Selected ({currentTabSelectedIds.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClearSelection}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Clear
+                </button>
+              </>
+            )}
+
+            {/* Delete All Option */}
+            <button
+              type="button"
+              onClick={() =>
+                setConfirmModal({
+                  type: 'ALL',
+                  count: currentTabRadars.length,
+                  targetTab: activeTab
+                })
+              }
+              className="px-3.5 py-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer"
+              title={`Delete all ${activeTab === 'ACTIVE' ? 'active' : 'history'} radars`}
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Delete All {activeTab === 'ACTIVE' ? 'Active' : 'History'} ({currentTabRadars.length})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ACTIVE RADARS TAB CONTENT */}
       {activeTab === 'ACTIVE' && (
         <div className="space-y-4">
@@ -280,6 +443,8 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
                 radar={radar}
                 isHighlighted={radar.id === highlightRadarId}
                 isScanning={isScanningId === radar.id}
+                isSelected={selectedIds.includes(radar.id)}
+                onToggleSelect={() => handleToggleSelectOne(radar.id)}
                 onViewTrains={() => setViewTrainsModalRadar(radar)}
                 onTogglePause={() => handleTogglePause(radar)}
                 onStop={() => handleStopRadar(radar.id)}
@@ -304,42 +469,63 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
             historyRadars.map((radar) => {
               const fromDisplayName = getStationDisplayName(radar.fromCode, radar.fromName);
               const toDisplayName = getStationDisplayName(radar.toCode, radar.toName);
+              const isSelected = selectedIds.includes(radar.id);
 
               return (
                 <div
                   key={radar.id}
-                  className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 opacity-85 hover:opacity-100 transition-opacity"
+                  className={`bg-slate-900/70 border rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all ${
+                    isSelected
+                      ? 'border-blue-500 bg-slate-900 shadow-md ring-1 ring-blue-500/40'
+                      : 'border-slate-800 opacity-85 hover:opacity-100'
+                  }`}
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                        {radar.mode === 'ROUTE' ? '🛤 ROUTE RADAR' : '🚆 TRAIN RADAR'}
-                      </span>
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                        radar.status === 'EXPIRED' ? 'bg-slate-800 text-slate-400' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
-                      }`}>
-                        {radar.status === 'EXPIRED' ? '⌛ EXPIRED' : '🛑 STOPPED'}
-                      </span>
-                    </div>
+                  <div className="flex items-start space-x-3.5">
+                    {/* Checkbox */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSelectOne(radar.id)}
+                      className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all cursor-pointer mt-0.5 shrink-0 ${
+                        isSelected
+                          ? 'bg-blue-600 border-blue-500 text-white'
+                          : 'bg-slate-950 border-slate-700 hover:border-slate-500 text-transparent'
+                      }`}
+                      title={isSelected ? 'Deselect history radar' : 'Select history radar'}
+                    >
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    </button>
 
-                    <div className="text-sm font-extrabold text-white">
-                      {radar.mode === 'TRAIN' 
-                        ? `${radar.trainNumber} ${radar.trainName}` 
-                        : `${fromDisplayName} (${radar.fromCode}) → ${toDisplayName} (${radar.toCode})`}
-                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                          {radar.mode === 'ROUTE' ? '🛤 ROUTE RADAR' : '🚆 TRAIN RADAR'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                          radar.status === 'EXPIRED' ? 'bg-slate-800 text-slate-400' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                        }`}>
+                          {radar.status === 'EXPIRED' ? '⌛ EXPIRED' : '🛑 STOPPED'}
+                        </span>
+                      </div>
 
-                    <div className="text-xs text-slate-400 flex items-center space-x-2">
-                      <span>{fromDisplayName} ({radar.fromCode}) → {toDisplayName} ({radar.toCode})</span>
-                      <span>•</span>
-                      <span>{radar.journeyDate}</span>
-                      <span>•</span>
-                      <span>{radar.travelClass} · {radar.quota}</span>
-                      <span>•</span>
-                      <span>Checked {radar.checkCount} times</span>
+                      <div className="text-sm font-extrabold text-white">
+                        {radar.mode === 'TRAIN' 
+                          ? `${radar.trainNumber} ${radar.trainName}` 
+                          : `${fromDisplayName} (${radar.fromCode}) → ${toDisplayName} (${radar.toCode})`}
+                      </div>
+
+                      <div className="text-xs text-slate-400 flex items-center space-x-2 flex-wrap gap-y-1">
+                        <span>{fromDisplayName} ({radar.fromCode}) → {toDisplayName} ({radar.toCode})</span>
+                        <span>•</span>
+                        <span>{radar.journeyDate}</span>
+                        <span>•</span>
+                        <span>{radar.travelClass} · {radar.quota}</span>
+                        <span>•</span>
+                        <span>Checked {radar.checkCount} times</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 self-end sm:self-center shrink-0">
                     <button
                       type="button"
                       onClick={() => handleDeleteRadar(radar.id)}
@@ -353,6 +539,69 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
               );
             })
           )}
+        </div>
+      )}
+
+      {/* Confirmation Modal for Delete Selected / Delete All */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start space-x-3.5 text-rose-400">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">
+                  {confirmModal.type === 'ALL'
+                    ? `Delete All ${confirmModal.targetTab === 'ACTIVE' ? 'Active' : 'History'} Radars?`
+                    : `Delete ${confirmModal.count} Selected Radar${confirmModal.count > 1 ? 's' : ''}?`}
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  {confirmModal.type === 'ALL'
+                    ? `This will permanently stop and delete all ${confirmModal.count} ${confirmModal.targetTab.toLowerCase()} radar jobs.`
+                    : `Are you sure you want to permanently delete the selected ${confirmModal.count} radar${confirmModal.count > 1 ? 's' : ''}?`}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300">
+              <p className="font-semibold text-rose-400">⚠️ Permanent Action</p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Background monitoring and notifications for these jobs will be permanently stopped and removed from your radar dashboard.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                disabled={isDeletingBulk}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmModal.type === 'ALL') {
+                    handleExecuteDeleteAll(confirmModal.targetTab);
+                  } else {
+                    handleExecuteDeleteSelected();
+                  }
+                }}
+                disabled={isDeletingBulk}
+                className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center space-x-1.5 transition-all shadow-md shadow-rose-950/40 cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingBulk ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>{isDeletingBulk ? 'Deleting...' : `Confirm Delete (${confirmModal.count})`}</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -375,6 +624,8 @@ interface RadarCardProps {
   radar: ServerRadarJob;
   isHighlighted?: boolean;
   isScanning?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
   onViewTrains: () => void;
   onTogglePause: () => void;
   onStop: () => void;
@@ -387,6 +638,8 @@ const RadarCard: React.FC<RadarCardProps> = ({
   radar,
   isHighlighted,
   isScanning,
+  isSelected = false,
+  onToggleSelect,
   onViewTrains,
   onTogglePause,
   onStop,
@@ -422,22 +675,45 @@ const RadarCard: React.FC<RadarCardProps> = ({
   return (
     <div
       className={`rounded-2xl border transition-all duration-300 overflow-hidden ${
-        isSeatFound
+        isSelected
+          ? 'ring-2 ring-blue-500 bg-slate-900 border-blue-500/80 shadow-lg'
+          : isSeatFound
           ? 'bg-slate-900 border-emerald-500 shadow-xl shadow-emerald-500/10'
           : isPaused
           ? 'bg-slate-900/60 border-slate-800 opacity-80'
           : 'bg-slate-900 border-slate-800 hover:border-slate-700 shadow-md'
-      } ${isHighlighted ? 'ring-2 ring-blue-500' : ''}`}
+      } ${isHighlighted && !isSelected ? 'ring-2 ring-blue-500' : ''}`}
     >
       {/* Top Banner / Type */}
       <div className={`px-4 sm:px-6 py-2.5 flex items-center justify-between border-b ${
-        isSeatFound
+        isSelected
+          ? 'bg-blue-950/40 border-blue-500/30 text-blue-200'
+          : isSeatFound
           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
           : isPaused
           ? 'bg-slate-950/60 border-slate-800 text-slate-400'
           : 'bg-slate-950/40 border-slate-800 text-slate-300'
       }`}>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2.5">
+          {/* Checkbox for batch select */}
+          {onToggleSelect && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSelect();
+              }}
+              className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all cursor-pointer shrink-0 ${
+                isSelected
+                  ? 'bg-blue-600 border-blue-500 text-white'
+                  : 'bg-slate-950/80 border-slate-700 hover:border-slate-500 text-transparent'
+              }`}
+              title={isSelected ? 'Deselect this radar' : 'Select this radar'}
+            >
+              <Check className="w-3.5 h-3.5 stroke-[3]" />
+            </button>
+          )}
+
           <span className="text-xs font-extrabold uppercase tracking-wider flex items-center space-x-1.5">
             <span>{isRoute ? '🛤 ROUTE RADAR' : '🚆 TRAIN RADAR'}</span>
           </span>

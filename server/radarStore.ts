@@ -171,6 +171,52 @@ export class RadarStore {
     return deleted;
   }
 
+  public static deleteRadarsBatch(ids: string[]): number {
+    if (!ids || !Array.isArray(ids) || ids.length === 0) return 0;
+    const map = this.loadRadars();
+    let count = 0;
+    for (const id of ids) {
+      if (!id) continue;
+      const cleanId = id.trim();
+      let deleted = map.delete(cleanId);
+      if (!deleted) {
+        for (const [key] of map.entries()) {
+          if (key.trim().toLowerCase() === cleanId.toLowerCase()) {
+            if (map.delete(key)) deleted = true;
+            break;
+          }
+        }
+      }
+      if (deleted) count++;
+    }
+    if (count > 0) {
+      this.persistRadars();
+    }
+    return count;
+  }
+
+  public static deleteAllRadarsForClient(clientId?: string, type: 'ACTIVE' | 'HISTORY' | 'ALL' = 'ALL'): number {
+    const map = this.loadRadars();
+    let count = 0;
+    for (const [id, radar] of Array.from(map.entries())) {
+      if (clientId && radar.clientId && radar.clientId !== clientId) continue;
+
+      const isActive = radar.status === 'ACTIVE' || radar.status === 'PAUSED' || radar.status === 'SEAT_FOUND';
+      const isHistory = radar.status === 'STOPPED' || radar.status === 'EXPIRED';
+
+      if (type === 'ACTIVE' && !isActive) continue;
+      if (type === 'HISTORY' && !isHistory) continue;
+
+      if (map.delete(id)) {
+        count++;
+      }
+    }
+    if (count > 0) {
+      this.persistRadars();
+    }
+    return count;
+  }
+
   // --- Push Subscription Operations ---
 
   public static saveSubscription(sub: PushSubscriptionItem): void {

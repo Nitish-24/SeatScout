@@ -668,6 +668,43 @@ export default function App() {
     }, 300);
   };
 
+  // Permanently delete multiple server radars at once
+  const handleDeleteServerRadarsBatch = async (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    setServerRadars((prev) => prev.filter((r) => !idSet.has(r.id)));
+    setWatches((prev) => prev.filter((w) => !idSet.has(w.id)));
+    try {
+      await RadarApiService.deleteRadarsBatch(ids);
+    } catch (err) {
+      console.warn('Failed to delete batch radars:', err);
+    }
+    setTimeout(() => {
+      refreshServerRadars();
+    }, 300);
+  };
+
+  // Permanently delete all radars (active, history, or all)
+  const handleDeleteAllServerRadars = async (type: 'ACTIVE' | 'HISTORY' | 'ALL') => {
+    if (type === 'ACTIVE') {
+      setServerRadars((prev) => prev.filter((r) => r.status === 'STOPPED' || r.status === 'EXPIRED'));
+      setWatches((prev) => prev.filter((w) => w.status !== 'monitoring' && w.status !== 'seat_found'));
+    } else if (type === 'HISTORY') {
+      setServerRadars((prev) => prev.filter((r) => r.status === 'ACTIVE' || r.status === 'PAUSED' || r.status === 'SEAT_FOUND'));
+    } else {
+      setServerRadars([]);
+      setWatches([]);
+    }
+    try {
+      await RadarApiService.deleteAllRadars(type);
+    } catch (err) {
+      console.warn('Failed to delete all radars:', err);
+    }
+    setTimeout(() => {
+      refreshServerRadars();
+    }, 300);
+  };
+
   const activeWatchesCount = watches.filter((w) => w.status === 'monitoring' || w.status === 'seat_found').length;
   const activeServerRadarsCount = serverRadars.filter((r) => r.status === 'ACTIVE' || r.status === 'SEAT_FOUND').length;
   // Radar nav count strictly reflects active 24/7 backend radars
@@ -757,6 +794,8 @@ export default function App() {
             highlightRadarId={highlightRadarId}
             onOpenPhoneModal={() => setIsPhoneModalOpen(true)}
             onDeleteRadar={handleDeleteServerRadar}
+            onDeleteBatch={handleDeleteServerRadarsBatch}
+            onDeleteAll={handleDeleteAllServerRadars}
             onOpenAlertModal={(r) => setActiveModalRadar(r)}
           />
         )}
