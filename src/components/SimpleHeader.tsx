@@ -1,5 +1,5 @@
 import React from 'react';
-import { Radio, Volume2, VolumeX, History, HelpCircle, Search, Sun, Moon, Smartphone, Bell, MessageCircle } from 'lucide-react';
+import { Radio, Volume2, VolumeX, History, HelpCircle, Search, Sun, Moon, Smartphone, Bell, MessageCircle, Lock } from 'lucide-react';
 import { NotificationSettings } from '../types';
 
 interface SimpleHeaderProps {
@@ -134,11 +134,28 @@ export const SimpleHeader: React.FC<SimpleHeaderProps> = ({
           {onRequestNotificationPermission && notificationPermission !== 'granted' && (
             <button
               onClick={onRequestNotificationPermission}
-              title="Enable instant browser desktop notifications"
-              className="hidden lg:flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-300 text-xs font-semibold hover:bg-amber-500/20 transition-all cursor-pointer"
+              title={
+                notificationPermission === 'denied'
+                  ? 'Notifications are blocked in browser settings. Click to view instructions to unblock.'
+                  : 'Enable instant browser desktop notifications'
+              }
+              className={`hidden lg:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                notificationPermission === 'denied'
+                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-300 hover:bg-amber-500/20'
+              }`}
             >
-              <Bell className="w-3.5 h-3.5 animate-bounce" />
-              <span>Push</span>
+              {notificationPermission === 'denied' ? (
+                <>
+                  <Lock className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Unblock Alerts</span>
+                </>
+              ) : (
+                <>
+                  <Bell className="w-3.5 h-3.5 animate-bounce" />
+                  <span>Push</span>
+                </>
+              )}
             </button>
           )}
 

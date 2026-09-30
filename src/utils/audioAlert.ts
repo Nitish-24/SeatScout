@@ -209,53 +209,104 @@ export function startTabAlertBadge(alertMessage: string = '🚨 SEATS AVAILABLE!
 }
 
 /**
- * Request notification permission from browser with safety for sandboxed iframes
+ * Request notification permission from browser with safety for sandboxed iframes.
+ * Features a detailed diagnostic console logger to inspect the exact state returned by the browser.
  */
 export async function requestNotificationPermission(): Promise<{
   permission: NotificationPermission;
   isIframeBlocked: boolean;
   message?: string;
 }> {
-  if (!('Notification' in window)) {
-    return {
-      permission: 'denied',
+  const inIframe = isInIframe();
+  const hasNotificationAPI = typeof window !== 'undefined' && 'Notification' in window;
+  const currentPermission = hasNotificationAPI ? Notification.permission : 'unsupported';
+  const isSecure = typeof window !== 'undefined' ? window.isSecureContext : false;
+
+  console.groupCollapsed(
+    '%c[NotificationPermission] Requesting Browser Notification Permission', 
+    'color: #2563eb; font-weight: bold; font-size: 11px;'
+  );
+  console.log('[NotificationPermission] Environment & Pre-check State:', {
+    hasNotificationAPI,
+    currentPermission,
+    isInIframe: inIframe,
+    isSecureContext: isSecure,
+    origin: typeof window !== 'undefined' ? window.location.origin : 'N/A',
+    fullUrl: typeof window !== 'undefined' ? window.location.href : 'N/A',
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A'
+  });
+
+  if (!hasNotificationAPI) {
+    const result = {
+      permission: 'denied' as NotificationPermission,
       isIframeBlocked: false,
       message: 'Browser does not support notifications.'
     };
+    console.warn('[NotificationPermission] ❌ Notification API is missing on window object in this browser environment.', result);
+    console.groupEnd();
+    return result;
   }
 
   if (Notification.permission === 'granted') {
-    return { permission: 'granted', isIframeBlocked: false };
+    const result = { permission: 'granted' as NotificationPermission, isIframeBlocked: false };
+    console.info('[NotificationPermission] ✅ Notification permission is ALREADY "granted" in this session.', result);
+    console.groupEnd();
+    return result;
   }
 
-  if (isInIframe()) {
-    // In sandboxed/cross-origin iframes, Notification.requestPermission() is blocked by browser security policy
+  if (inIframe) {
+    console.warn(
+      '[NotificationPermission] ⚠️ App detected inside iframe sandbox (window.self !== window.top). ' +
+      'Modern Chromium browsers disallow Notification.requestPermission() inside iframes without top-level user gesture.'
+    );
     try {
+      console.log('[NotificationPermission] Attempting Notification.requestPermission() inside iframe...');
       const perm = await Notification.requestPermission();
-      return {
+      console.log(`[NotificationPermission] Iframe call completed. Exact browser state returned: "${perm}"`);
+      const result = {
         permission: perm,
         isIframeBlocked: perm !== 'granted',
         message: perm !== 'granted' ? 'Embedded preview blocked notification prompt. Open in a new tab or use SMS alerts.' : undefined
       };
-    } catch {
-      return {
-        permission: 'denied',
+      console.log('[NotificationPermission] Final iframe request resolution:', result);
+      console.groupEnd();
+      return result;
+    } catch (iframeErr: any) {
+      const result = {
+        permission: 'denied' as NotificationPermission,
         isIframeBlocked: true,
         message: 'Browser security restricts native notification prompts in embedded previews. Please open the app in a new tab or use our SMS alerts.'
       };
+      console.warn('[NotificationPermission] ❌ Iframe requestPermission() threw error (blocked by browser sandbox policy):', iframeErr, result);
+      console.groupEnd();
+      return result;
     }
   }
 
   try {
+    console.log('[NotificationPermission] Invoking browser native prompt: Notification.requestPermission()...');
     const permission = await Notification.requestPermission();
-    return { permission, isIframeBlocked: false };
+    console.log(
+      `%c[NotificationPermission] Native prompt completed. Exact browser state returned: "${permission}"`,
+      permission === 'granted' 
+        ? 'color: #10b981; font-weight: bold;' 
+        : permission === 'denied' 
+        ? 'color: #ef4444; font-weight: bold;' 
+        : 'color: #f59e0b; font-weight: bold;'
+    );
+    const result = { permission, isIframeBlocked: false };
+    console.log('[NotificationPermission] Final resolution:', result);
+    console.groupEnd();
+    return result;
   } catch (err: any) {
-    console.warn('Notification permission request error:', err);
-    return {
-      permission: 'denied',
-      isIframeBlocked: true,
+    const result = {
+      permission: 'denied' as NotificationPermission,
+      isIframeBlocked: false,
       message: err?.message || 'Could not request notification permission.'
     };
+    console.error('[NotificationPermission] ❌ Exception encountered during Notification.requestPermission():', err, result);
+    console.groupEnd();
+    return result;
   }
 }
 

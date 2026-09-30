@@ -18,6 +18,7 @@ import {
 } from './utils/storage';
 import { playSeatAlertSound, sendDesktopNotification, requestNotificationPermission, triggerInAppNotification } from './utils/audioAlert';
 import { PhoneNotificationModal } from './components/PhoneNotificationModal';
+import { BrowserSettingsGuidanceModal } from './components/BrowserSettingsGuidanceModal';
 import { InAppNotificationToast } from './components/InAppNotificationToast';
 import { SeatAvailableModal } from './components/SeatAvailableModal';
 import { PhoneNotificationClient } from './services/phoneNotificationClient';
@@ -81,11 +82,34 @@ export default function App() {
     return 'default';
   });
 
+  // Helper to determine if notification permission has been explicitly denied by browser or user
+  const isPermissionDenied = (perm?: NotificationPermission): boolean => {
+    const current = perm !== undefined ? perm : notificationPermission;
+    return current === 'denied';
+  };
+
+  const [showDeniedGuidance, setShowDeniedGuidance] = useState<boolean>(false);
+
   const handleRequestNotificationPermission = async () => {
     const res = await requestNotificationPermission();
     setNotificationPermission(res.permission);
-    if (res.isIframeBlocked || res.permission !== 'granted') {
+
+    if (isPermissionDenied(res.permission)) {
+      console.log('[App] Notification permission is "denied". Guiding user toward manual browser settings.');
+      setShowDeniedGuidance(true);
+    } else if (res.isIframeBlocked || res.permission !== 'granted') {
       setIsPhoneModalOpen(true);
+    }
+  };
+
+  const handleRecheckNotificationPermission = async () => {
+    const res = await requestNotificationPermission();
+    setNotificationPermission(res.permission);
+    if (res.permission === 'granted') {
+      setShowDeniedGuidance(false);
+      sendDesktopNotification('✅ Screen Pop-ups Enabled!', {
+        body: 'Browser notifications are now unblocked and active for live IRCTC seat alerts.'
+      });
     }
   };
 
@@ -768,6 +792,14 @@ export default function App() {
         isOpen={isPhoneModalOpen}
         onClose={() => setIsPhoneModalOpen(false)}
         onPhoneVerified={(p) => setVerifiedPhone(p)}
+      />
+
+      {/* Manual Browser Settings Guidance Modal when permission is 'denied' */}
+      <BrowserSettingsGuidanceModal
+        isOpen={showDeniedGuidance}
+        onClose={() => setShowDeniedGuidance(false)}
+        onRecheckPermission={handleRecheckNotificationPermission}
+        onOpenPhoneModal={() => setIsPhoneModalOpen(true)}
       />
 
       {/* Main Screen Content (Screen-Wise) */}
