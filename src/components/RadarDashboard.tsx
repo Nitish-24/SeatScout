@@ -28,7 +28,7 @@ import { ServerRadarJob, MonitoredTrainStatus } from '../types';
 import { RadarApiService } from '../services/radarApiService';
 import { PushNotificationService } from '../services/pushNotification';
 import { POPULAR_STATIONS, CLASS_LABELS, QUOTA_DETAILS } from '../data/trainData';
-import { playSeatAlertSound } from '../utils/audioAlert';
+import { playSeatAlertSound, sendDesktopNotification, isInIframe } from '../utils/audioAlert';
 import { getCachedStation } from '../services/stationService';
 
 export const getStationDisplayName = (code: string, explicitName?: string): string => {
@@ -79,12 +79,20 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
     targetTab: 'ACTIVE' | 'HISTORY';
   } | null>(null);
   const [isDeletingBulk, setIsDeletingBulk] = useState<boolean>(false);
+  const [isPushBannerDismissed, setIsPushBannerDismissed] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('seatscout_push_banner_dismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [pushStatus, setPushStatus] = useState<{ supported: boolean; permission: NotificationPermission; subscribed: boolean }>({
     supported: false,
     permission: 'default',
     subscribed: false
   });
   const [isEnablingPush, setIsEnablingPush] = useState<boolean>(false);
+  const isEmbedded = typeof window !== 'undefined' && isInIframe();
 
   // Check push subscription status on mount
   useEffect(() => {
@@ -92,16 +100,41 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
   }, []);
 
   const handleEnablePush = async () => {
+    if (isEmbedded) {
+      window.open(window.location.href, '_blank');
+      setIsPushBannerDismissed(true);
+      try {
+        sessionStorage.setItem('seatscout_push_banner_dismissed', 'true');
+      } catch {}
+      return;
+    }
+
     setIsEnablingPush(true);
     try {
-      await PushNotificationService.enablePushNotifications();
+      const res = await PushNotificationService.enablePushNotifications();
       const status = await PushNotificationService.getStatus();
       setPushStatus(status);
+      if (res.success || status.permission === 'granted') {
+        setIsPushBannerDismissed(true);
+        try {
+          sessionStorage.setItem('seatscout_push_banner_dismissed', 'true');
+        } catch {}
+        sendDesktopNotification('✅ Screen Pop-ups Enabled!', {
+          body: 'You will now receive top-right display alerts even when working on other tabs or desktop apps.'
+        });
+      }
     } catch (err: any) {
       console.warn('Failed to enable push:', err);
     } finally {
       setIsEnablingPush(false);
     }
+  };
+
+  const handleDismissPushBanner = () => {
+    setIsPushBannerDismissed(true);
+    try {
+      sessionStorage.setItem('seatscout_push_banner_dismissed', 'true');
+    } catch {}
   };
 
   // Actions on Radars
@@ -224,18 +257,20 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       
       {/* Push Notification Banner */}
-      {pushStatus.supported && (!pushStatus.subscribed || pushStatus.permission !== 'granted') && (
-        <div className="bg-gradient-to-r from-blue-900/40 via-slate-900 to-blue-950/40 border border-blue-500/40 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
-          <div className="flex items-start space-x-3.5">
+      {pushStatus.supported && (!pushStatus.subscribed || pushStatus.permission !== 'granted') && !isPushBannerDismissed && (
+        <div className="bg-gradient-to-r from-blue-900/40 via-slate-900 to-blue-950/40 border border-blue-500/40 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg relative">
+          <div className="flex items-start space-x-3.5 pr-8 sm:pr-0">
             <div className="p-2.5 rounded-xl bg-blue-500/20 text-blue-400 shrink-0 mt-0.5">
               <BellRing className="w-5 h-5 animate-bounce" />
             </div>
             <div>
               <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-                <span>Enable Push Notifications for 24/7 Alerts</span>
+                <span>{isEmbedded ? 'Enable Desktop Screen Pop-ups' : 'Enable Push Notifications for 24/7 Alerts'}</span>
               </h3>
-              <p className="text-xs text-slate-300 mt-0.5">
-                Receive instant mobile and desktop alerts when seats open up — even when your browser is closed.
+              <p className="text-xs text-slate-300 mt-0.5 max-w-xl">
+                {isEmbedded
+                  ? 'Browser security restricts native desktop pop-ups inside iframe previews. Open in a full tab to receive top-right screen pop-ups even when working on other desktop apps.'
+                  : 'Receive instant desktop screen pop-ups and mobile notifications when seats open up — even when working in other tabs or apps.'}
               </p>
             </div>
           </div>
@@ -251,14 +286,40 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
               </button>
             )}
 
+            {isEmbedded ? (
+              <a
+                href={typeof window !== 'undefined' ? window.location.href : '/'}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  setIsPushBannerDismissed(true);
+                  try { sessionStorage.setItem('seatscout_push_banner_dismissed', 'true'); } catch {}
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-md cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Open in Full Tab ↗</span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={handleEnablePush}
+                disabled={isEnablingPush}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-md cursor-pointer disabled:opacity-50"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                <span>{isEnablingPush ? 'Connecting...' : 'Enable Push Alerts'}</span>
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={handleEnablePush}
-              disabled={isEnablingPush}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-md cursor-pointer disabled:opacity-50"
+              onClick={handleDismissPushBanner}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              title="Dismiss banner"
+              aria-label="Dismiss banner"
             >
-              <Bell className="w-3.5 h-3.5" />
-              <span>{isEnablingPush ? 'Connecting...' : 'Enable Push Alerts'}</span>
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>

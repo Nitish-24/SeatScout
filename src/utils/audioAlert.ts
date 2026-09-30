@@ -295,27 +295,34 @@ export async function sendDesktopNotification(
     ...options
   };
 
+  let notificationSent = false;
+
   // Method A: Service Worker showNotification (Best for background tabs, Chrome & Firefox)
   if ('serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.ready;
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 500))
+      ]);
       if (reg && reg.showNotification) {
         await reg.showNotification(title, notifOptions);
-        return;
+        notificationSent = true;
       }
     } catch (swErr) {
       console.warn('Service worker showNotification fallback:', swErr);
     }
   }
 
-  // Method B: Direct new Notification constructor
-  try {
-    const notification = new Notification(title, notifOptions);
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
-  } catch (e) {
-    console.warn('Direct notification construction failed:', e);
+  // Method B: Direct new Notification constructor if service worker did not handle it
+  if (!notificationSent) {
+    try {
+      const notification = new Notification(title, notifOptions);
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    } catch (e) {
+      console.warn('Direct notification construction failed:', e);
+    }
   }
 }
