@@ -113,22 +113,103 @@ export default function App() {
     }
   };
 
-  // Fetch and poll server radars every 3.5 seconds
-  const refreshServerRadars = useCallback(async () => {
+  // Exponential Backoff Auto-Retry Configuration for Radar Polling
+  const RADAR_BASE_POLL_INTERVAL_MS = 3500;
+  const RADAR_MAX_BACKOFF_INTERVAL_MS = 30000;
+  const RADAR_BACKOFF_MULTIPLIER = 1.8;
+
+  const consecutiveFailuresRef = useRef<number>(0);
+  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isPollingInProgressRef = useRef<boolean>(false);
+
+  // Helper to compute exponential backoff delay with jitter
+  const calculateBackoffDelay = (failures: number): number => {
+    if (failures <= 0) return RADAR_BASE_POLL_INTERVAL_MS;
+    // Exponential formula: base * (multiplier ^ failures) + random jitter (0-500ms)
+    const exponential = RADAR_BASE_POLL_INTERVAL_MS * Math.pow(RADAR_BACKOFF_MULTIPLIER, failures);
+    const jitter = Math.floor(Math.random() * 500);
+    return Math.min(Math.round(exponential + jitter), RADAR_MAX_BACKOFF_INTERVAL_MS);
+  };
+
+  // Fetch and poll server radars with resilient exponential backoff
+  const refreshServerRadars = useCallback(async (isManualTrigger = false): Promise<void> => {
+    // Avoid multiple overlapping network calls
+    if (isPollingInProgressRef.current) return;
+    isPollingInProgressRef.current = true;
+
+    // Clear any pending poll timer before running
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+
     try {
       const res = await RadarApiService.listRadars();
       if (res && res.radars) {
         setServerRadars(res.radars);
       }
-    } catch (err) {
-      console.warn('Server radars query error:', err);
+
+      // If recovering from a previous network drop, log recovery
+      if (consecutiveFailuresRef.current > 0) {
+        console.log(
+          `%c[RadarSync] Connection restored after ${consecutiveFailuresRef.current} failed attempt(s). Resetting poll interval to ${RADAR_BASE_POLL_INTERVAL_MS}ms.`,
+          'color: #10b981; font-weight: bold;'
+        );
+      }
+      consecutiveFailuresRef.current = 0;
+
+      // Reschedule next normal poll
+      pollTimeoutRef.current = setTimeout(() => {
+        refreshServerRadars();
+      }, RADAR_BASE_POLL_INTERVAL_MS);
+    } catch (err: any) {
+      consecutiveFailuresRef.current += 1;
+      const nextDelay = calculateBackoffDelay(consecutiveFailuresRef.current);
+
+      console.warn(
+        `%c[RadarSync] Radar request failed (failure #${consecutiveFailuresRef.current}). Rescheduling retry with exponential backoff in ${(nextDelay / 1000).toFixed(1)}s:`,
+        'color: #f59e0b; font-weight: bold;',
+        err?.message || err
+      );
+
+      // Reschedule retry using exponential backoff delay
+      pollTimeoutRef.current = setTimeout(() => {
+        refreshServerRadars();
+      }, nextDelay);
+    } finally {
+      isPollingInProgressRef.current = false;
     }
   }, []);
 
   useEffect(() => {
+    // Initial immediate poll on mount
     refreshServerRadars();
-    const interval = setInterval(refreshServerRadars, 3500);
-    return () => clearInterval(interval);
+
+    // Instant recovery when device reconnects to Wi-Fi/Internet
+    const handleOnline = () => {
+      console.log('[RadarSync] Network online event detected! Instantly reconnecting radar monitor...');
+      consecutiveFailuresRef.current = 0;
+      refreshServerRadars(true);
+    };
+
+    // Re-check radar status when tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshServerRadars(true);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+        pollTimeoutRef.current = null;
+      }
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [refreshServerRadars]);
 
   // Monitor server radars (both Route Radar and Train Radar) for seat release events:
