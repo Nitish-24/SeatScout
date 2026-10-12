@@ -148,6 +148,81 @@ export default function App() {
       const res = await RadarApiService.listRadars();
       if (res && res.radars) {
         setServerRadars(res.radars);
+
+        // Detailed console logger tracking the JSON response body structure for radar monitoring & seat notifications
+        console.groupCollapsed(
+          `%c[RadarSync] 🛰️ Server Response: ${res.radars.length} radar(s) received | Active: ${res.activeCount ?? 0} | Seat Found: ${res.seatFoundCount ?? 0}`,
+          'color: #3b82f6; font-weight: bold;'
+        );
+        console.log('[RadarSync:RawResponse] Full JSON payload:', res);
+
+        res.radars.forEach((radar, index) => {
+          const availableTrains = (radar.monitoredTrains || []).filter(
+            (t) => t.lastStatus === 'CURR_AVBL' || (t.lastStatus === 'AVAILABLE' && (t.seatsCount || 0) > 0)
+          );
+          const hasSeatsNotificationTrigger =
+            (radar.status === 'SEAT_FOUND' && Boolean(radar.foundSeatInfo)) || availableTrains.length > 0;
+
+          console.group(
+            `%c[RadarSync:Job #${index + 1}] ID: ${radar.id} | Mode: ${radar.mode} | Status: ${radar.status} | Trigger Notification: ${hasSeatsNotificationTrigger ? '🔔 YES' : '⏳ NO'}`,
+            hasSeatsNotificationTrigger
+              ? 'color: #10b981; font-weight: bold;'
+              : 'color: #6366f1; font-weight: bold;'
+          );
+
+          console.log('[RadarSync:Job:Metadata]', {
+            id: radar.id,
+            clientId: radar.clientId,
+            mode: radar.mode,
+            status: radar.status,
+            trainNumber: radar.trainNumber,
+            trainName: radar.trainName,
+            route: `${radar.fromCode} -> ${radar.toCode}`,
+            journeyDate: radar.journeyDate,
+            travelClass: radar.travelClass,
+            quota: radar.quota,
+            checkCount: radar.checkCount,
+            lastCheckedAt: radar.lastCheckedAt,
+            nextCheckAt: radar.nextCheckAt,
+            lastStatusText: radar.lastStatusText,
+            lastError: radar.lastError,
+          });
+
+          console.log('[RadarSync:Job:SeatFoundInfo]', {
+            hasFoundSeatInfo: Boolean(radar.foundSeatInfo),
+            foundSeatInfo: radar.foundSeatInfo || null,
+          });
+
+          console.log('[RadarSync:Job:MonitoredTrains]', {
+            totalTrains: radar.monitoredTrains?.length || 0,
+            trains: (radar.monitoredTrains || []).map((t) => ({
+              trainNumber: t.trainNumber,
+              trainName: t.trainName,
+              lastStatus: t.lastStatus,
+              seatsCount: t.seatsCount,
+              statusText: t.statusText,
+              isAvailable: (t as any).isAvailable ?? (t.lastStatus === 'CURR_AVBL' || t.lastStatus === 'AVAILABLE'),
+              lastCheckedAt: t.lastCheckedAt,
+            })),
+            qualifyingAvailableTrains: availableTrains,
+          });
+
+          console.log('[RadarSync:Job:TriggerDiagnostics]', {
+            radarStatus: radar.status,
+            isSeatFoundStatus: radar.status === 'SEAT_FOUND',
+            hasFoundSeatInfo: Boolean(radar.foundSeatInfo),
+            seatFoundConditionMet: radar.status === 'SEAT_FOUND' && Boolean(radar.foundSeatInfo),
+            qualifyingAvailableTrainsCount: availableTrains.length,
+            willTriggerNotification: hasSeatsNotificationTrigger,
+            rawJobObject: radar,
+          });
+
+          console.groupEnd();
+        });
+
+        console.groupEnd();
+      } else {
+        console.warn('[RadarSync] Received empty or unexpected radar response structure:', res);
       }
 
       // If recovering from a previous network drop, log recovery
@@ -908,6 +983,26 @@ export default function App() {
     }, 300);
   };
 
+  // Pause all active server radar jobs to save bandwidth without deleting the jobs
+  const handlePauseAllServerRadars = async () => {
+    // Optimistically update client state so UI reflects PAUSED state immediately
+    setServerRadars((prev) =>
+      prev.map((r) =>
+        r.status === 'ACTIVE' || r.status === 'SEAT_FOUND'
+          ? { ...r, status: 'PAUSED', lastStatusText: 'Paused by user (Bandwidth saver)' }
+          : r
+      )
+    );
+    try {
+      await RadarApiService.pauseAllRadars();
+    } catch (err) {
+      console.warn('Failed to pause all radars on server:', err);
+    }
+    setTimeout(() => {
+      refreshServerRadars();
+    }, 300);
+  };
+
   const activeWatchesCount = watches.filter((w) => w.status === 'monitoring' || w.status === 'seat_found').length;
   const activeServerRadarsCount = serverRadars.filter((r) => r.status === 'ACTIVE' || r.status === 'SEAT_FOUND').length;
   // Radar nav count strictly reflects active 24/7 backend radars
@@ -1007,6 +1102,7 @@ export default function App() {
             onDeleteRadar={handleDeleteServerRadar}
             onDeleteBatch={handleDeleteServerRadarsBatch}
             onDeleteAll={handleDeleteAllServerRadars}
+            onPauseAll={handlePauseAllServerRadars}
             onOpenAlertModal={(r) => setActiveModalRadar(r)}
           />
         )}

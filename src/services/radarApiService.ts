@@ -57,6 +57,18 @@ export class RadarApiService {
     return data.radar;
   }
 
+  public static async pauseAllRadars(): Promise<number> {
+    const clientId = getClientId();
+    const res = await fetch('/api/radar/pause-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId })
+    });
+    if (!res.ok) throw new Error('Failed to pause all radars');
+    const data = await res.json();
+    return data.count || 0;
+  }
+
   public static async resumeRadar(id: string): Promise<ServerRadarJob> {
     const res = await fetch(`/api/radar/${id}/resume`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to resume radar');

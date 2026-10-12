@@ -277,6 +277,22 @@ radarRouter.post('/create', async (req, res) => {
 });
 
 /**
+ * POST /api/radar/pause-all
+ * Pause all active radar jobs to save bandwidth without deleting the jobs
+ */
+radarRouter.post('/pause-all', (req, res) => {
+  try {
+    const { clientId } = req.body || {};
+    const count = RadarStore.pauseAllRadars(clientId);
+    console.log(`[RadarAPI] Paused all active radars${clientId ? ` for client ${clientId}` : ''}: ${count} jobs set to PAUSED`);
+    res.json({ success: true, count });
+  } catch (err: any) {
+    console.error('[RadarAPI] Failed to pause all radars:', err);
+    res.status(500).json({ error: 'Failed to pause all radars', details: err?.message });
+  }
+});
+
+/**
  * POST /api/radar/:id/pause
  */
 radarRouter.post('/:id/pause', (req, res) => {

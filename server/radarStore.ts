@@ -153,6 +153,31 @@ export class RadarStore {
     return updated;
   }
 
+  /**
+   * Pause all active and seat-found radars to save bandwidth without deleting the jobs
+   */
+  public static pauseAllRadars(clientId?: string): number {
+    const map = this.loadRadars();
+    let count = 0;
+    const nowIso = new Date().toISOString();
+    for (const [id, radar] of Array.from(map.entries())) {
+      if (clientId && radar.clientId && radar.clientId !== clientId) continue;
+
+      // Only pause jobs that are currently actively being monitored
+      if (radar.status === 'ACTIVE' || radar.status === 'SEAT_FOUND') {
+        radar.status = 'PAUSED';
+        radar.updatedAt = nowIso;
+        radar.lastStatusText = 'Paused by user (Bandwidth saver)';
+        map.set(id, radar);
+        count++;
+      }
+    }
+    if (count > 0) {
+      this.persistRadars();
+    }
+    return count;
+  }
+
   public static deleteRadar(id: string): boolean {
     if (!id) return false;
     const cleanId = id.trim();

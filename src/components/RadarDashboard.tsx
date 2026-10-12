@@ -54,6 +54,7 @@ interface RadarDashboardProps {
   onDeleteRadar?: (id: string) => void;
   onDeleteBatch?: (ids: string[]) => void;
   onDeleteAll?: (type: 'ACTIVE' | 'HISTORY' | 'ALL') => void;
+  onPauseAll?: () => void;
   onOpenAlertModal?: (radar: ServerRadarJob) => void;
 }
 
@@ -67,11 +68,14 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
   onDeleteRadar,
   onDeleteBatch,
   onDeleteAll,
+  onPauseAll,
   onOpenAlertModal
 }) => {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'HISTORY'>('ACTIVE');
   const [viewTrainsModalRadar, setViewTrainsModalRadar] = useState<ServerRadarJob | null>(null);
   const [isScanningId, setIsScanningId] = useState<string | null>(null);
+  const [isPausingAll, setIsPausingAll] = useState(false);
+  const [pauseBannerNotice, setPauseBannerNotice] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [confirmModal, setConfirmModal] = useState<{
     type: 'SELECTED' | 'ALL';
@@ -189,6 +193,11 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
   const activeRadars = radars.filter((r) => r.status === 'ACTIVE' || r.status === 'PAUSED' || r.status === 'SEAT_FOUND');
   const historyRadars = radars.filter((r) => r.status === 'STOPPED' || r.status === 'EXPIRED');
 
+  // Actively polling radars that are currently consuming bandwidth (status ACTIVE or SEAT_FOUND)
+  const activelyRunningRadars = activeRadars.filter(
+    (r) => r.status === 'ACTIVE' || r.status === 'SEAT_FOUND'
+  );
+
   const currentTabRadars = activeTab === 'ACTIVE' ? activeRadars : historyRadars;
   const currentTabSelectedIds = currentTabRadars.map((r) => r.id).filter((id) => selectedIds.includes(id));
   const isAllSelected = currentTabRadars.length > 0 && currentTabSelectedIds.length === currentTabRadars.length;
@@ -213,6 +222,27 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
   const handleClearSelection = () => {
     const currentIdSet = new Set(currentTabRadars.map((r) => r.id));
     setSelectedIds((prev) => prev.filter((id) => !currentIdSet.has(id)));
+  };
+
+  // Pause all active radar jobs on the server to save bandwidth without deleting the jobs
+  const handleExecutePauseAll = async () => {
+    if (activelyRunningRadars.length === 0) return;
+    setIsPausingAll(true);
+    try {
+      if (onPauseAll) {
+        onPauseAll();
+        setPauseBannerNotice(`Paused all active radar jobs to save bandwidth. Monitoring is halted without deleting.`);
+      } else {
+        const count = await RadarApiService.pauseAllRadars();
+        setPauseBannerNotice(`Paused ${count} active radar job${count !== 1 ? 's' : ''}. Background polling is halted to save bandwidth.`);
+        onRefreshRadars();
+      }
+      setTimeout(() => setPauseBannerNotice(null), 5000);
+    } catch (err) {
+      console.error('Failed to pause all radars:', err);
+    } finally {
+      setIsPausingAll(false);
+    }
   };
 
   const handleExecuteDeleteSelected = async () => {
@@ -342,6 +372,19 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
+          {activelyRunningRadars.length > 0 && (
+            <button
+              type="button"
+              onClick={handleExecutePauseAll}
+              disabled={isPausingAll}
+              className="px-3.5 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+              title="Pause all active radar jobs on server to save bandwidth without deleting the jobs"
+            >
+              <Pause className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isPausingAll ? 'Pausing All...' : `Pause All (${activelyRunningRadars.length})`}</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onNavigateToSearch}
@@ -352,6 +395,24 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Notice Banner when Radars are Paused */}
+      {pauseBannerNotice && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3.5 text-xs text-amber-200 flex items-center justify-between shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center space-x-2.5">
+            <Pause className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>{pauseBannerNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPauseBannerNotice(null)}
+            className="text-amber-400 hover:text-amber-200 p-1 cursor-pointer"
+            aria-label="Dismiss banner"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Radar Tabs: ACTIVE RADARS / RADAR HISTORY */}
       <div className="flex items-center space-x-2 border-b border-slate-800 pb-1">
@@ -426,7 +487,26 @@ export const RadarDashboard: React.FC<RadarDashboardProps> = ({
           </div>
 
           {/* Right: Actions */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+            {activeTab === 'ACTIVE' && (
+              <button
+                type="button"
+                onClick={handleExecutePauseAll}
+                disabled={isPausingAll || activelyRunningRadars.length === 0}
+                className="px-3.5 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm active:scale-95"
+                title="Sets all active radar jobs to a 'PAUSED' status on the server to save bandwidth, without deleting the jobs"
+              >
+                <Pause className="w-3.5 h-3.5 text-amber-400" />
+                <span>
+                  {isPausingAll
+                    ? 'Pausing All...'
+                    : activelyRunningRadars.length === 0
+                    ? 'All Radars Paused'
+                    : `Pause All (${activelyRunningRadars.length})`}
+                </span>
+              </button>
+            )}
+
             {hasSomeSelected && (
               <>
                 <button
