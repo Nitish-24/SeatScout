@@ -147,8 +147,34 @@ radarRouter.post('/create', async (req, res) => {
     }
 
     // 2. Fetch train details / route trains to seed monitoredTrains
-    let monitoredTrains = [];
-    if (cleanMode === 'ROUTE') {
+    let monitoredTrains: any[] = [];
+    if (Array.isArray(req.body.trains) && req.body.trains.length > 0) {
+      monitoredTrains = req.body.trains
+        .filter((t: any) => Boolean(t && (t.trainNumber || t.number) && String(t.trainNumber || t.number).trim() !== 'undefined'))
+        .map((t: any) => {
+          const num = String(t.trainNumber || t.number || '').trim();
+          const name = t.trainName || t.name || `Train ${num}`;
+          return {
+            trainNumber: num,
+            trainName: name,
+            departureTime: t.departureTime || '12:00',
+            arrivalTime: t.arrivalTime || '--:--',
+            duration: t.duration || '--',
+            classes: t.classes || [cleanClass],
+            lastStatus: 'CHECKING' as const,
+            seatsCount: 0,
+            statusText: 'Initializing Radar...',
+            lastCheckedAt: new Date().toISOString(),
+            bookingUrl: 'https://www.irctc.co.in/nget/train-search'
+          };
+        });
+    } else if (Array.isArray(req.body.monitoredTrains) && req.body.monitoredTrains.length > 0) {
+      monitoredTrains = req.body.monitoredTrains.filter((t: any) => 
+        Boolean(t && t.trainNumber && String(t.trainNumber).trim() !== 'undefined')
+      );
+    }
+
+    if (cleanMode === 'ROUTE' && monitoredTrains.length === 0) {
       try {
         const routeTrains = await fetchRealIrctcTrains(cleanFrom, cleanTo, cleanDate, cleanQuota, false);
         if (routeTrains && routeTrains.length > 0) {
@@ -169,7 +195,7 @@ radarRouter.post('/create', async (req, res) => {
       } catch (err) {
         console.warn('[RadarAPI] Route train fetch error:', err);
       }
-    } else {
+    } else if (cleanMode === 'TRAIN' && monitoredTrains.length === 0) {
       monitoredTrains = [
         {
           trainNumber: cleanTrainNo || '12006',
@@ -314,9 +340,34 @@ radarRouter.post('/:id/scan', async (req, res) => {
  * GET /api/radar/:id/trains
  * Get live monitored trains status for Route Radar
  */
-radarRouter.get('/:id/trains', (req, res) => {
+radarRouter.get('/:id/trains', async (req, res) => {
   const radar = RadarStore.getRadarById(req.params.id);
   if (!radar) return res.status(404).json({ error: 'Radar not found' });
+
+  if (radar.mode === 'ROUTE' && (!radar.monitoredTrains || radar.monitoredTrains.length === 0)) {
+    try {
+      const routeTrains = await fetchRealIrctcTrains(radar.fromCode, radar.toCode, radar.journeyDate, radar.quota, false);
+      if (routeTrains && routeTrains.length > 0) {
+        const mapped = routeTrains.map((t) => ({
+          trainNumber: t.trainNumber,
+          trainName: t.trainName,
+          departureTime: t.departureTime,
+          arrivalTime: t.arrivalTime,
+          duration: t.duration,
+          classes: t.classes || [radar.travelClass],
+          lastStatus: 'CHECKING' as const,
+          seatsCount: 0,
+          statusText: 'Checking availability...',
+          lastCheckedAt: new Date().toISOString(),
+          bookingUrl: 'https://www.irctc.co.in/nget/train-search'
+        }));
+        RadarStore.updateRadar(radar.id, { monitoredTrains: mapped });
+        radar.monitoredTrains = mapped;
+      }
+    } catch (err) {
+      console.warn('[RadarAPI] Failed to auto-populate trains on query:', err);
+    }
+  }
 
   res.json({
     radarId: radar.id,

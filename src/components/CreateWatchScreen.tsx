@@ -185,8 +185,48 @@ export const CreateWatchScreen: React.FC<CreateWatchScreenProps> = ({
         toName: toStation.name,
         journeyDate: journeyDate,
         travelClass: chosenClass,
-        quota: quota
+        quota: quota,
+        trains: trainsList.map((t) => ({
+          trainNumber: (t as any).trainNumber || t.number,
+          trainName: (t as any).trainName || t.name,
+          departureTime: t.departureTime,
+          arrivalTime: t.arrivalTime,
+          duration: t.duration,
+          classes: t.classes
+        }))
       });
+
+      // Register client-side watch for reactive in-app Monitoring screen
+      const newRouteWatch: SeatScoutWatch = {
+        id: `watch-route-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        fromStation,
+        toStation,
+        journeyDate,
+        trainNumber: 'ALL',
+        trainName: `All Trains on Route (${trainsList.length || 'corridor'} trains)`,
+        departureTime: trainsList[0]?.departureTime || '06:00',
+        estimatedChartingTime: new Date().toISOString(),
+        travelClass: (selectedClassFilter === 'ALL' ? 'ANY' : selectedClassFilter) as any,
+        quota,
+        status: 'monitoring',
+        lastCheckedAt: new Date().toISOString(),
+        checkIntervalSeconds: 15,
+        checkCount: 1,
+        notifySound: true,
+        notifyPush: true,
+        pingLogs: [
+          {
+            id: `log-${Date.now()}`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            statusText: `Route Radar active for ${fromStation.code} → ${toStation.code} (${trainsList.length} trains).`,
+            availabilityCode: 'RADAR_ACTIVE',
+            trainNumber: 'ALL'
+          }
+        ]
+      };
+      onStartWatch?.(newRouteWatch);
 
       // Immediate top-right screen pop-up confirmation
       triggerInAppNotification({

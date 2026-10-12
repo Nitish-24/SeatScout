@@ -92,7 +92,8 @@ export class RadarStore {
 
   public static getActiveRadars(): RadarJob[] {
     const all = this.getAllRadars();
-    return all.filter((r) => r.status === 'ACTIVE');
+    // Both ACTIVE and SEAT_FOUND jobs must be polled continuously so route changes, seat count fluctuations, and current booking releases are detected 24/7
+    return all.filter((r) => r.status === 'ACTIVE' || r.status === 'SEAT_FOUND');
   }
 
   public static getRadarById(id: string): RadarJob | null {

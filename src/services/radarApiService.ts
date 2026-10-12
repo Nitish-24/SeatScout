@@ -13,6 +13,14 @@ export interface CreateRadarParams {
   travelClass: string;
   quota: string;
   departureTime?: string;
+  trains?: Array<{
+    trainNumber: string;
+    trainName: string;
+    departureTime?: string;
+    arrivalTime?: string;
+    duration?: string;
+    classes?: string[];
+  }>;
 }
 
 export class RadarApiService {

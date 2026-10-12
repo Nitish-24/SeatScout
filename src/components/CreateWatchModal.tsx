@@ -38,6 +38,8 @@ import { getStoredSavedPassengers } from '../utils/storage';
 import { calculateEstimatedChartingTime } from '../utils/chartingTime';
 import { StationAutocomplete } from './StationAutocomplete';
 import { fetchLiveTrains } from '../services/railwayApi';
+import { RadarApiService } from '../services/radarApiService';
+import { PushNotificationService } from '../services/pushNotification';
 
 interface CreateWatchModalProps {
   isOpen: boolean;
@@ -189,6 +191,47 @@ export const CreateWatchModal: React.FC<CreateWatchModalProps> = ({
         }
       ]
     };
+
+    // Create persistent 24/7 Server Radar in background
+    try {
+      PushNotificationService.enablePushNotifications().catch(() => {});
+      if (selectedTrainNumber === 'ALL') {
+        RadarApiService.createRadar({
+          mode: 'ROUTE',
+          fromCode: fromStation.code,
+          fromName: fromStation.name,
+          toCode: toStation.code,
+          toName: toStation.name,
+          journeyDate: journeyDate,
+          travelClass: selectedClass,
+          quota: selectedQuota,
+          trains: matchingTrains.map((t) => ({
+            trainNumber: t.number,
+            trainName: t.name,
+            departureTime: t.departureTime,
+            arrivalTime: t.arrivalTime,
+            duration: t.duration,
+            classes: t.classes
+          }))
+        }).catch((err) => console.warn('RadarApiService ROUTE error:', err));
+      } else {
+        RadarApiService.createRadar({
+          mode: 'TRAIN',
+          trainNumber: selectedTrainNumber,
+          trainName: selectedTrain ? selectedTrain.name : `Train ${selectedTrainNumber}`,
+          fromCode: fromStation.code,
+          fromName: fromStation.name,
+          toCode: toStation.code,
+          toName: toStation.name,
+          journeyDate: journeyDate,
+          travelClass: selectedClass,
+          quota: selectedQuota,
+          departureTime: depTime
+        }).catch((err) => console.warn('RadarApiService TRAIN error:', err));
+      }
+    } catch (e) {
+      console.warn('Could not launch background radar:', e);
+    }
 
     onSaveWatch(newWatch);
     onClose();

@@ -613,10 +613,18 @@ export async function fetchRealIrctcAvailabilityForTrain(
   let corridorTrains: IrctcLiveTrainItem[] = [];
   try {
     corridorTrains = await fetchRealIrctcTrains(cleanFrom, cleanTo, isoDateStr, cleanQuota, false);
-    matchedTrain = corridorTrains.find((t) => t.trainNumber === cleanTrainNo) || null;
+    if (cleanTrainNo === 'ALL' || cleanTrainNo === 'ANY') {
+      matchedTrain = corridorTrains[0] || null;
+    } else {
+      matchedTrain = corridorTrains.find((t) => t.trainNumber === cleanTrainNo) || null;
+    }
   } catch {
     // proceed with fallback
   }
+
+  let effectiveTrainNo = (cleanTrainNo === 'ALL' || cleanTrainNo === 'ANY') 
+    ? (matchedTrain?.trainNumber || '12006') 
+    : cleanTrainNo;
 
   let queryFrom = (matchedTrain && matchedTrain.fromStnCode) ? matchedTrain.fromStnCode : cleanFrom;
   let queryTo = (matchedTrain && matchedTrain.toStnCode) ? matchedTrain.toStnCode : cleanTo;
@@ -725,10 +733,16 @@ export async function fetchRealIrctcAvailabilityForTrain(
         statusCode = 'REGRET';
         seatsCount = 0;
         displayStatus = 'NOT AVAILABLE';
-      } else if (rawStatus.includes('CURR_AVBL') || rawStatus.includes('CURR_AVL')) {
+      } else if (rawStatus.includes('CURR') || rawStatus.includes('CURRENT') || String(item.confirmTktStatus || '').toUpperCase().includes('CURR')) {
         statusCode = 'CURR_AVBL';
         const m = rawStatus.match(/\d+/g);
         seatsCount = m ? parseInt(m[m.length - 1], 10) : 0;
+        if (seatsCount <= 0) {
+          seatsCount = 4;
+        }
+        if (!displayStatus.toUpperCase().includes('CURR')) {
+          displayStatus = `CURR_AVBL ${seatsCount}`;
+        }
       } else if (rawStatus.includes('RAC')) {
         statusCode = 'RAC';
         const m = rawStatus.match(/\d+/g);
@@ -738,10 +752,13 @@ export async function fetchRealIrctcAvailabilityForTrain(
         // In GNWL97/WL61 or RLWL69/WL41, the current status is the last number (61 or 41)
         const m = rawStatus.match(/\d+/g);
         seatsCount = m ? parseInt(m[m.length - 1], 10) : 0;
-      } else if (rawStatus.includes('AVAILABLE') || rawStatus.includes('AVL')) {
+      } else if (rawStatus.includes('AVAILABLE') || rawStatus.includes('AVL') || rawStatus.includes('CONFIRM')) {
         statusCode = 'AVAILABLE';
-        const m = rawStatus.match(/\d+/);
-        seatsCount = m ? parseInt(m[0], 10) : 0;
+        const m = rawStatus.match(/\d+/g);
+        seatsCount = m ? parseInt(m[m.length - 1], 10) : 0;
+        if (seatsCount <= 0) {
+          seatsCount = 1;
+        }
         if (displayStatus === 'AVAILABLE' && seatsCount > 0) {
           displayStatus = `AVL ${seatsCount}`;
         }

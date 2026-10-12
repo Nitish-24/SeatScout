@@ -25,6 +25,7 @@ import { PhoneNotificationClient } from './services/phoneNotificationClient';
 import { 
   fetchLiveAvailability, 
   fetchLiveAvailabilityDetailed,
+  fetchLiveTrains,
   fetchNetworkHealth 
 } from './services/railwayApi';
 import { 
@@ -218,8 +219,34 @@ export default function App() {
     if (!serverRadars || serverRadars.length === 0) return;
 
     serverRadars.forEach((radar) => {
-      if (radar.status === 'SEAT_FOUND' && radar.foundSeatInfo) {
-        const fingerprint = `${radar.status}_${radar.foundSeatInfo.detectedAt || ''}_${radar.foundSeatInfo.availableBerths}_${radar.foundSeatInfo.trainNumber}_${radar.foundSeatInfo.allAvailableTrains?.length || 0}`;
+      const availableTrains = (radar.monitoredTrains || []).filter(
+        (t) => t.lastStatus === 'CURR_AVBL' || (t.lastStatus === 'AVAILABLE' && (t.seatsCount || 0) > 0)
+      );
+
+      const hasSeats = (radar.status === 'SEAT_FOUND' && Boolean(radar.foundSeatInfo)) || availableTrains.length > 0;
+
+      if (hasSeats) {
+        const primary = radar.foundSeatInfo || {
+          trainNumber: availableTrains[0]?.trainNumber || radar.trainNumber || '12006',
+          trainName: availableTrains[0]?.trainName || radar.trainName || 'Express',
+          availableBerths: availableTrains[0]?.seatsCount || 4,
+          availabilityCode: availableTrains[0]?.statusText || 'CURR_AVBL',
+          detectedAt: new Date().toISOString(),
+          bookingUrl: 'https://www.irctc.co.in/nget/train-search',
+          travelClass: radar.travelClass,
+          quota: radar.quota,
+          allAvailableTrains: availableTrains.map((at) => ({
+            trainNumber: at.trainNumber,
+            trainName: at.trainName,
+            departureTime: at.departureTime,
+            seatsCount: at.seatsCount || 4,
+            statusCode: at.lastStatus === 'CURR_AVBL' ? 'CURR_AVBL' : 'AVAILABLE',
+            statusText: at.statusText,
+            bookingUrl: 'https://www.irctc.co.in/nget/train-search'
+          }))
+        };
+
+        const fingerprint = `${radar.id}_${primary.trainNumber}_${primary.availableBerths}_${primary.availabilityCode}_${(primary.allAvailableTrains || []).length}`;
 
         const lastFingerprint = notifiedRadarFingerprintsRef.current.get(radar.id);
 
@@ -233,8 +260,7 @@ export default function App() {
 
           // 2. Format informative title & body
           const isRoute = radar.mode === 'ROUTE';
-          const trains = radar.foundSeatInfo.allAvailableTrains || [];
-          const primary = radar.foundSeatInfo;
+          const trains = primary.allAvailableTrains || [];
 
           const title = isRoute
             ? `🎉 Current Booking Seats Available on ${radar.fromCode} → ${radar.toCode}!`
@@ -518,38 +544,57 @@ export default function App() {
               const startT = performance.now();
               let durationMs = 0;
               try {
-                const liveDetailed = await fetchLiveAvailabilityDetailed(
-                  watch.trainNumber || '12012',
-                  watch.travelClass,
-                  watch.quota,
-                  watch.journeyDate,
-                  watch.fromStation.code,
-                  watch.toStation.code,
-                  false
-                );
-                durationMs = Math.round(performance.now() - startT);
-
-                if (liveDetailed.success && liveDetailed.availability && liveDetailed.availability.length > 0) {
-                  // Report success & latency to adapt frequency dynamically
-                  recordNetworkObservation(durationMs, true);
-                  const match = liveDetailed.availability.find((d) => d.dateStr === watch.journeyDate) || liveDetailed.availability[0];
-
-                  const isSeatAvailable = match && (
-                    match.statusCode === 'CURR_AVBL' || 
-                    (match.statusCode === 'AVAILABLE' && (match.seatsCount || 0) > 0)
+                if (watch.trainNumber === 'ALL') {
+                  const searchRes = await fetchLiveTrains(
+                    watch.fromStation.code,
+                    watch.toStation.code,
+                    watch.journeyDate,
+                    watch.quota,
+                    '',
+                    true
                   );
+                  durationMs = Math.round(performance.now() - startT);
+                  recordNetworkObservation(durationMs, true);
 
-                  if (isSeatAvailable) {
-                    triggerSeatAvailableAlert(watch.id, match.seatsCount || 4);
+                  const trains = searchRes?.trains || [];
+                  let availableTrainFound: any = null;
+                  let foundSeatsCount = 0;
+                  let statusText = `Monitoring all ${trains.length || 'corridor'} trains · Waiting for current booking`;
+                  let avlCode = 'MONITORING';
+
+                  for (const t of trains) {
+                    const cache = (t as any).liveAvailability || (t as any).avaiblitycache;
+                    if (cache && typeof cache === 'object') {
+                      for (const [cls, item] of Object.entries(cache)) {
+                        if (watch.travelClass !== 'ANY' && watch.travelClass !== 'ALL' && cls !== watch.travelClass) continue;
+                        const raw = String((item as any)?.Availability || (item as any)?.availability || (item as any)?.AvailabilityDisplayName || (item as any)?.availabilityDisplayName || '').toUpperCase();
+                        if (raw.includes('CURR') || raw.includes('CURRENT') || raw.includes('AVAILABLE') || raw.includes('AVL')) {
+                          const m = raw.match(/\d+/g);
+                          const count = m ? parseInt(m[m.length - 1], 10) : (raw.includes('CURR') ? 4 : 1);
+                          if (count > 0) {
+                            availableTrainFound = t;
+                            foundSeatsCount = count;
+                            statusText = `🎉 ${t.number || (t as any).trainNumber} ${t.name || (t as any).trainName}: ${raw}`;
+                            avlCode = raw.includes('CURR') ? 'CURR_AVBL' : 'AVAILABLE';
+                            break;
+                          }
+                        }
+                      }
+                    }
+                    if (availableTrainFound) break;
+                  }
+
+                  if (availableTrainFound) {
+                    triggerSeatAvailableAlert(watch.id, foundSeatsCount || 4);
                   }
 
                   const newPing: PingLogEntry = {
                     id: `ping-${Date.now()}`,
                     timestamp: new Date().toISOString(),
-                    statusText: match ? match.statusText : 'Adaptive scan OK',
-                    availabilityCode: match ? match.statusCode : 'AVL',
-                    seatsAvailable: match ? match.seatsCount : undefined,
-                    trainNumber: watch.trainNumber,
+                    statusText,
+                    availabilityCode: avlCode,
+                    seatsAvailable: foundSeatsCount > 0 ? foundSeatsCount : undefined,
+                    trainNumber: availableTrainFound ? (availableTrainFound.number || (availableTrainFound as any).trainNumber) : 'ALL',
                     adaptiveIntervalSeconds: adaptive.effectiveIntervalSeconds,
                     latencyMs: durationMs,
                     reason: adaptive.statusReason
@@ -570,21 +615,74 @@ export default function App() {
                     })
                   );
                 } else {
-                  // Service busy / returned error -> trigger backoff
-                  recordNetworkObservation(durationMs, false, 503);
-                  setWatches((curr) =>
-                    curr.map((w) => {
-                      if (w.id !== watch.id) return w;
-                      const nextAdaptive = calculateAdaptivePolling(w);
-                      return {
-                        ...w,
-                        lastCheckedAt: new Date().toISOString(),
-                        nextCheckAt: new Date(Date.now() + nextAdaptive.effectiveIntervalSeconds * 1000).toISOString(),
-                        checkCount: w.checkCount + 1,
-                        adaptivePolling: nextAdaptive
-                      };
-                    })
+                  const liveDetailed = await fetchLiveAvailabilityDetailed(
+                    watch.trainNumber || '12012',
+                    watch.travelClass,
+                    watch.quota,
+                    watch.journeyDate,
+                    watch.fromStation.code,
+                    watch.toStation.code,
+                    false
                   );
+                  durationMs = Math.round(performance.now() - startT);
+
+                  if (liveDetailed.success && liveDetailed.availability && liveDetailed.availability.length > 0) {
+                    // Report success & latency to adapt frequency dynamically
+                    recordNetworkObservation(durationMs, true);
+                    const match = liveDetailed.availability.find((d) => d.dateStr === watch.journeyDate) || liveDetailed.availability[0];
+
+                    const isSeatAvailable = match && (
+                      match.statusCode === 'CURR_AVBL' || 
+                      (match.statusCode === 'AVAILABLE' && (match.seatsCount || 0) > 0)
+                    );
+
+                    if (isSeatAvailable) {
+                      triggerSeatAvailableAlert(watch.id, match.seatsCount || 4);
+                    }
+
+                    const newPing: PingLogEntry = {
+                      id: `ping-${Date.now()}`,
+                      timestamp: new Date().toISOString(),
+                      statusText: match ? match.statusText : 'Adaptive scan OK',
+                      availabilityCode: match ? match.statusCode : 'AVL',
+                      seatsAvailable: match ? match.seatsCount : undefined,
+                      trainNumber: watch.trainNumber,
+                      adaptiveIntervalSeconds: adaptive.effectiveIntervalSeconds,
+                      latencyMs: durationMs,
+                      reason: adaptive.statusReason
+                    };
+
+                    setWatches((curr) =>
+                      curr.map((w) => {
+                        if (w.id !== watch.id) return w;
+                        const nextAdaptive = calculateAdaptivePolling(w);
+                        return {
+                          ...w,
+                          lastCheckedAt: new Date().toISOString(),
+                          nextCheckAt: new Date(Date.now() + nextAdaptive.effectiveIntervalSeconds * 1000).toISOString(),
+                          checkCount: w.checkCount + 1,
+                          adaptivePolling: nextAdaptive,
+                          pingLogs: [newPing, ...(w.pingLogs || []).slice(0, 19)]
+                        };
+                      })
+                    );
+                  } else {
+                    // Service busy / returned error -> trigger backoff
+                    recordNetworkObservation(durationMs, false, 503);
+                    setWatches((curr) =>
+                      curr.map((w) => {
+                        if (w.id !== watch.id) return w;
+                        const nextAdaptive = calculateAdaptivePolling(w);
+                        return {
+                          ...w,
+                          lastCheckedAt: new Date().toISOString(),
+                          nextCheckAt: new Date(Date.now() + nextAdaptive.effectiveIntervalSeconds * 1000).toISOString(),
+                          checkCount: w.checkCount + 1,
+                          adaptivePolling: nextAdaptive
+                        };
+                      })
+                    );
+                  }
                 }
               } catch (err) {
                 durationMs = Math.round(performance.now() - startT);

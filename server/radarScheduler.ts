@@ -2,6 +2,7 @@ import { RADAR_CONFIG } from './radarConfig.js';
 import { RadarStore } from './radarStore.js';
 import { PushService } from './pushService.js';
 import { EmailNotificationService } from './emailNotificationService.js';
+import { PhoneNotificationService, phoneStore } from './phoneNotificationService.js';
 import { 
   RadarJob, 
   MonitoredTrainStatus, 
@@ -132,7 +133,7 @@ export class RadarScheduler {
    */
   public static async processRadar(radar: RadarJob): Promise<void> {
     const updatedRadar = RadarStore.getRadarById(radar.id);
-    if (!updatedRadar || updatedRadar.status !== 'ACTIVE') return;
+    if (!updatedRadar || (updatedRadar.status !== 'ACTIVE' && updatedRadar.status !== 'SEAT_FOUND')) return;
 
     if (radar.mode === 'TRAIN') {
       await this.processTrainRadar(updatedRadar);
@@ -200,12 +201,35 @@ export class RadarScheduler {
     const nextIntervalMs = this.calculateNextIntervalMs({ ...radar, failureCount: 0 });
     const nextCheckIso = new Date(Date.now() + nextIntervalMs).toISOString();
 
+    // Check if seats became unavailable after previously being found
+    if (!isNowAvailable && radar.status === 'SEAT_FOUND') {
+      RadarStore.updateRadar(radar.id, {
+        status: 'ACTIVE',
+        lastCheckedAt: nowIso,
+        nextCheckAt: nextCheckIso,
+        checkCount: radar.checkCount + 1,
+        failureCount: 0,
+        lastStatusText: `Monitoring · ${result.statusText} (waiting for next cancellation or current booking release)`,
+        monitoredTrains: updatedMonitored,
+        foundSeatInfo: undefined,
+        lastNotifiedState: {
+          isAvailable: false,
+          availableKeys: [],
+          notifiedAt: nowIso
+        }
+      });
+      return;
+    }
+
     // Check if we should notify:
     // Rule:
     // - If it wasn't available and is now available -> NOTIFY!
-    // - If it was already available but has a new event (e.g. key changed or seats changed significantly) -> check deduplication
-    // - If availability went 0 -> 212 -> 212 -> 211, do NOT repeatedly spam for the same event
-    const isNewAvailabilityEvent = isNowAvailable && (!wasAvailable || !previousKeys.includes(currentKey));
+    // - If it was already available but has a new event or foundSeatInfo missing -> NOTIFY!
+    const isNewAvailabilityEvent = isNowAvailable && (
+      !wasAvailable || 
+      !radar.foundSeatInfo ||
+      !previousKeys.includes(currentKey)
+    );
 
     if (isNewAvailabilityEvent) {
       console.log(`[RadarScheduler] SEAT AVAILABLE for Train Radar ${radar.id}: ${trainNo} ${result.statusText}`);
@@ -281,6 +305,23 @@ export class RadarScheduler {
           console.error(`[RadarScheduler] Error dispatching email alert to ${emailPref.email}:`, err);
         });
       }
+
+      // WhatsApp & SMS alerts to verified phone users
+      const verifiedPhones = phoneStore.getAllVerifiedPhones();
+      for (const phone of verifiedPhones) {
+        PhoneNotificationService.sendBerthAlert(phone, {
+          trainNumber: trainNo,
+          trainName: radar.trainName || trainNo,
+          fromStation: radar.fromCode,
+          toStation: radar.toCode,
+          journeyDate: radar.journeyDate,
+          travelClass: radar.travelClass,
+          quota: radar.quota,
+          availableBerths: result.seatsCount
+        }).catch((err) => {
+          console.error(`[RadarScheduler] Error dispatching phone alert to ${phone}:`, err);
+        });
+      }
     } else {
       // Normal monitoring tick (seats unavailable or unchanged)
       RadarStore.updateRadar(radar.id, {
@@ -301,42 +342,34 @@ export class RadarScheduler {
 
   /**
    * Process a Route Radar (monitors all trains on the route)
+   * Fetches real-time corridor trains and checks all classes with instant CRIS PRS availability cache.
    */
   private static async processRouteRadar(radar: RadarJob): Promise<void> {
     const nowIso = new Date().toISOString();
 
-    // Ensure we have the list of trains on this corridor
-    let trainsToMonitor = radar.monitoredTrains;
-    if (!trainsToMonitor || trainsToMonitor.length === 0) {
-      try {
-        const routeTrains = await fetchRealIrctcTrains(radar.fromCode, radar.toCode, radar.journeyDate, radar.quota, false);
-        if (routeTrains && routeTrains.length > 0) {
-          trainsToMonitor = routeTrains.map((t) => ({
-            trainNumber: t.trainNumber,
-            trainName: t.trainName,
-            departureTime: t.departureTime,
-            arrivalTime: t.arrivalTime,
-            duration: t.duration,
-            classes: t.classes || [radar.travelClass],
-            lastStatus: 'CHECKING',
-            seatsCount: 0,
-            statusText: 'Checking availability...',
-            lastCheckedAt: nowIso,
-            bookingUrl: 'https://www.irctc.co.in/nget/train-search'
-          }));
-        }
-      } catch (err) {
-        console.warn(`[RadarScheduler] Could not fetch route trains for ${radar.fromCode}->${radar.toCode}:`, err);
-      }
+    // 1. Fetch live corridor trains with real-time CRIS PRS availability cache in ONE shot
+    let corridorTrains: any[] = [];
+    try {
+      corridorTrains = await fetchRealIrctcTrains(
+        radar.fromCode,
+        radar.toCode,
+        radar.journeyDate,
+        radar.quota,
+        true
+      );
+    } catch (err) {
+      console.warn(`[RadarScheduler] Error fetching corridor trains for ${radar.fromCode}->${radar.toCode}:`, err);
     }
 
+    // Combine with already stored trains if any
+    let trainsToMonitor = corridorTrains.length > 0 ? corridorTrains : radar.monitoredTrains;
     if (!trainsToMonitor || trainsToMonitor.length === 0) {
       const nextIntervalMs = this.calculateNextIntervalMs(radar);
       RadarStore.updateRadar(radar.id, {
         lastCheckedAt: nowIso,
         nextCheckAt: new Date(Date.now() + nextIntervalMs).toISOString(),
         checkCount: radar.checkCount + 1,
-        lastStatusText: 'No trains active on this route for selected date.'
+        lastStatusText: 'Waiting for trains on this route...'
       });
       return;
     }
@@ -345,73 +378,153 @@ export class RadarScheduler {
     const availableTrainsList: AvailableTrainAlertItem[] = [];
     let hasAnyFailure = false;
 
-    // Query each train (using shared deduplicated cache)
+    // Check each train on the corridor
     for (const train of trainsToMonitor) {
-      const queryResult = await this.queryTrainAvailabilityWithDeduplication(
-        train.trainNumber,
-        radar.fromCode,
-        radar.toCode,
-        radar.travelClass,
-        radar.quota,
-        radar.journeyDate
-      );
+      const trainNo = String(train.trainNumber || (train as any).number || '').trim();
+      if (!trainNo || trainNo === 'undefined' || trainNo === 'ALL') continue;
+      const trainName = train.trainName || (train as any).name || `Train ${trainNo}`;
+      const classes = train.classes || (radar.travelClass !== 'ALL' && radar.travelClass !== 'ANY' ? [radar.travelClass] : ['3A', 'SL', 'CC', '2S', '2A']);
+      
+      let bestResult: ParsedSeatResult | null = null;
+      let matchedClass = radar.travelClass;
 
-      if (!queryResult) {
+      // Method A: Check train's live avaiblitycache (instant from CRIS/Ixigo)
+      if (train.avaiblitycache && Object.keys(train.avaiblitycache).length > 0) {
+        if (radar.travelClass === 'ALL' || radar.travelClass === 'ANY') {
+          // Check ALL classes for current booking or standard availability
+          for (const [cls, cacheItem] of Object.entries(train.avaiblitycache)) {
+            const parsed = this.parseSeatStatus(cacheItem);
+            if (parsed.isAvailable) {
+              if (!bestResult || (!bestResult.isCurrAvbl && parsed.isCurrAvbl) || (parsed.seatsCount > bestResult.seatsCount)) {
+                bestResult = parsed;
+                matchedClass = cls;
+              }
+            }
+          }
+          // If no available class found, take the primary class status for display
+          if (!bestResult) {
+            const firstCacheItem = Object.values(train.avaiblitycache)[0];
+            bestResult = this.parseSeatStatus(firstCacheItem);
+          }
+        } else {
+          // Check the specifically requested travelClass
+          const cacheItem = train.avaiblitycache[radar.travelClass] || Object.values(train.avaiblitycache)[0];
+          if (cacheItem) {
+            bestResult = this.parseSeatStatus(cacheItem);
+          }
+        }
+      }
+
+      // Method B: If no result from cache, query with deduplication
+      if (!bestResult || bestResult.statusCode === 'REGRET') {
+        try {
+          const targetClass = radar.travelClass === 'ALL' || radar.travelClass === 'ANY'
+            ? (classes[0] || '3A')
+            : radar.travelClass;
+          const queryResult = await this.queryTrainAvailabilityWithDeduplication(
+            trainNo,
+            radar.fromCode,
+            radar.toCode,
+            targetClass,
+            radar.quota,
+            radar.journeyDate
+          );
+          if (queryResult) {
+            bestResult = queryResult.result;
+          }
+        } catch {
+          hasAnyFailure = true;
+        }
+      }
+
+      if (!bestResult) {
         hasAnyFailure = true;
         updatedMonitoredList.push({
-          ...train,
+          trainNumber: trainNo,
+          trainName,
+          departureTime: train.departureTime || '12:00',
+          arrivalTime: train.arrivalTime || '--:--',
+          duration: train.duration || '--',
+          classes,
           lastStatus: train.lastStatus || 'CHECKING',
           isStale: true,
           statusText: train.statusText || 'Gateway checking...',
-          lastCheckedAt: train.lastCheckedAt || nowIso
+          lastCheckedAt: train.lastCheckedAt || nowIso,
+          bookingUrl: 'https://www.irctc.co.in/nget/train-search'
         });
         continue;
       }
 
-      const { result } = queryResult;
-      const isTrainAvbl = result.isAvailable;
-      const statusType: MonitoredTrainStatus['lastStatus'] = result.isCurrAvbl 
+      const isTrainAvbl = bestResult.isAvailable;
+      const statusType: MonitoredTrainStatus['lastStatus'] = bestResult.isCurrAvbl 
         ? 'CURR_AVBL' 
-        : (result.isAvailable ? 'AVAILABLE' : (result.isDeparted ? 'DEPARTED' : 'NOT_AVAILABLE'));
+        : (bestResult.isAvailable ? 'AVAILABLE' : (bestResult.isDeparted ? 'DEPARTED' : 'NOT_AVAILABLE'));
 
       updatedMonitoredList.push({
-        ...train,
+        trainNumber: trainNo,
+        trainName,
+        departureTime: train.departureTime || '12:00',
+        arrivalTime: train.arrivalTime || '--:--',
+        duration: train.duration || '--',
+        classes,
         lastStatus: statusType,
-        seatsCount: result.seatsCount,
-        statusText: result.statusText,
+        seatsCount: bestResult.seatsCount,
+        statusText: bestResult.statusText,
         lastCheckedAt: nowIso,
-        isStale: false
+        isStale: false,
+        bookingUrl: 'https://www.irctc.co.in/nget/train-search'
       });
 
       if (isTrainAvbl) {
         availableTrainsList.push({
-          trainNumber: train.trainNumber,
-          trainName: train.trainName,
+          trainNumber: trainNo,
+          trainName,
           departureTime: train.departureTime,
-          seatsCount: result.seatsCount,
-          statusCode: result.statusCode,
-          statusText: result.statusText,
+          seatsCount: bestResult.seatsCount,
+          statusCode: bestResult.statusCode,
+          statusText: bestResult.statusText,
           bookingUrl: 'https://www.irctc.co.in/nget/train-search'
         });
       }
     }
 
-    const currentAvailableKeys = availableTrainsList.map((t) => `${t.trainNumber}_${t.seatsCount}`);
+    const currentAvailableKeys = availableTrainsList.map((t) => `${t.trainNumber}_${t.seatsCount}_${t.statusCode}`);
     const previousKeys = radar.lastNotifiedState?.availableKeys || [];
     const wasAvailable = radar.lastNotifiedState?.isAvailable || false;
     const isNowAvailable = availableTrainsList.length > 0;
-
-    // Check if new trains or seats opened up that weren't notified yet
-    const hasNewAvailableTrains = isNowAvailable && (
-      !wasAvailable || 
-      currentAvailableKeys.some((k) => !previousKeys.includes(k))
-    );
 
     const nextIntervalMs = this.calculateNextIntervalMs({
       ...radar,
       failureCount: hasAnyFailure ? radar.failureCount + 1 : 0
     });
     const nextCheckIso = new Date(Date.now() + nextIntervalMs).toISOString();
+
+    // If seats were booked / disappeared on route:
+    if (!isNowAvailable && radar.status === 'SEAT_FOUND') {
+      RadarStore.updateRadar(radar.id, {
+        status: 'ACTIVE',
+        lastCheckedAt: nowIso,
+        nextCheckAt: nextCheckIso,
+        checkCount: radar.checkCount + 1,
+        failureCount: hasAnyFailure ? radar.failureCount + 1 : 0,
+        lastStatusText: `All ${updatedMonitoredList.length} corridor trains actively monitored · Waiting for current-booking seats`,
+        monitoredTrains: updatedMonitoredList,
+        foundSeatInfo: undefined,
+        lastNotifiedState: {
+          isAvailable: false,
+          availableKeys: [],
+          notifiedAt: nowIso
+        }
+      });
+      return;
+    }
+
+    // Check if new trains or seats opened up that weren't notified yet
+    const hasNewAvailableTrains = isNowAvailable && (
+      !wasAvailable || 
+      !radar.foundSeatInfo ||
+      currentAvailableKeys.some((k) => !previousKeys.includes(k))
+    );
 
     if (hasNewAvailableTrains) {
       console.log(`[RadarScheduler] Route seats found on ${radar.fromCode}->${radar.toCode}: ${availableTrainsList.length} train(s)`);
@@ -501,6 +614,23 @@ export class RadarScheduler {
           console.error(`[RadarScheduler] Error dispatching email alert for route to ${emailPref.email}:`, err);
         });
       }
+
+      // WhatsApp / SMS notification to verified phones
+      const verifiedPhones = phoneStore.getAllVerifiedPhones();
+      for (const phone of verifiedPhones) {
+        PhoneNotificationService.sendBerthAlert(phone, {
+          trainNumber: primaryTrain.trainNumber,
+          trainName: primaryTrain.trainName,
+          fromStation: radar.fromCode,
+          toStation: radar.toCode,
+          journeyDate: radar.journeyDate,
+          travelClass: radar.travelClass,
+          quota: radar.quota,
+          availableBerths: primaryTrain.seatsCount
+        }).catch((err) => {
+          console.error(`[RadarScheduler] Error sending route phone alert to ${phone}:`, err);
+        });
+      }
     } else {
       // Normal monitoring tick for route
       RadarStore.updateRadar(radar.id, {
@@ -551,10 +681,10 @@ export class RadarScheduler {
       return inFlight;
     }
 
-    // 3. Initiate single upstream request
+    // 3. Initiate single upstream request with corridor cache fallback
     const promise = (async () => {
       try {
-        const raw = await fetchRealIrctcAvailabilityForTrain(
+        let raw = await fetchRealIrctcAvailabilityForTrain(
           trainNumber,
           fromCode,
           toCode,
@@ -563,6 +693,29 @@ export class RadarScheduler {
           journeyDate,
           forceRefresh
         );
+
+        // Fallback: If single train fetch returned empty, try extracting from full route trains cache
+        if (!raw || !Array.isArray(raw) || raw.length === 0) {
+          try {
+            const corridorTrains = await fetchRealIrctcTrains(fromCode, toCode, journeyDate, quota, false);
+            const matched = corridorTrains.find((t) => t.trainNumber === trainNumber);
+            if (matched && matched.avaiblitycache) {
+              const targetClass = travelClass === 'ANY' || travelClass === 'ALL'
+                ? Object.keys(matched.avaiblitycache)[0]
+                : travelClass;
+              const cacheItem: any = matched.avaiblitycache[targetClass] || Object.values(matched.avaiblitycache)[0];
+              if (cacheItem) {
+                raw = [{
+                  dateStr: journeyDate,
+                  statusText: cacheItem.availabilityDisplayName || cacheItem.AvailabilityDisplayName || cacheItem.availability || cacheItem.Availability || 'AVAILABLE',
+                  statusCode: cacheItem.availabilityStatus || cacheItem.AvailabilityStatus || (String(cacheItem.availability || '').includes('CURR') ? 'CURR_AVBL' : 'AVAILABLE'),
+                  seatsCount: 0,
+                  fare: Number(cacheItem.fare || cacheItem.Fare || 845)
+                }];
+              }
+            }
+          } catch {}
+        }
 
         if (!raw || !Array.isArray(raw) || raw.length === 0) {
           return null;
@@ -588,7 +741,9 @@ export class RadarScheduler {
   }
 
   /**
-   * Helper: parse seat availability item into structured result
+   * Helper: parse seat availability item into structured result.
+   * Handles objects from fetchRealIrctcAvailabilityForTrain, avaiblitycache, and raw strings.
+   * Ensures CURR_AVBL is ALWAYS recognized as confirmed available seats!
    */
   public static parseSeatStatus(item: any): ParsedSeatResult {
     if (!item) {
@@ -601,22 +756,86 @@ export class RadarScheduler {
       };
     }
 
-    const code = (item.statusCode || '').toUpperCase();
-    const text = (item.statusText || '').toUpperCase();
-    const count = typeof item.seatsCount === 'number' ? item.seatsCount : 0;
-    const isDeparted = code === 'DEPARTED' || text.includes('DEPARTED');
+    if (typeof item === 'string') {
+      item = { statusText: item, statusCode: item };
+    }
 
-    const isCurrAvbl = (code === 'CURR_AVBL' || text.includes('CURR_AVBL') || text.includes('CURRENT')) && !isDeparted;
-    const isStandardAvbl = (code === 'AVAILABLE' || text.includes('AVAILABLE') || text.startsWith('AVL')) && count > 0 && !isDeparted;
-    const isAvailable = (isCurrAvbl || isStandardAvbl) && count > 0;
+    const code = String(
+      item.statusCode ||
+      item.AvailabilityStatus ||
+      item.availabilityStatus ||
+      item.status ||
+      ''
+    ).toUpperCase();
+
+    const text = String(
+      item.statusText ||
+      item.availabilityDisplayName ||
+      item.AvailabilityDisplayName ||
+      item.availability ||
+      item.Availability ||
+      item.confirmTktStatus ||
+      code
+    ).toUpperCase();
+
+    const extra = String(item.confirmTktStatus || item.prediction || item.predictionDisplayName || '').toUpperCase();
+    const combined = `${code} ${text} ${extra}`;
+
+    const isDeparted = combined.includes('DEPARTED') || combined.includes('TRAIN DEPARTED');
+    const isRegret = !isDeparted && (
+      combined.includes('REGRET') || 
+      combined.includes('NO ROOM') || 
+      combined.includes('CLASS NOT EXIST') ||
+      combined.includes('NOT AVAILABLE')
+    );
+
+    // Current Booking patterns: CURR_AVBL, CURR_AVL, CURRENT, CURR, CURR AVL
+    const isCurrAvbl = !isDeparted && !isRegret && (
+      combined.includes('CURR') ||
+      combined.includes('CURRENT')
+    );
+
+    // Standard Available patterns: AVAILABLE, AVL, CNF, CONFIRM
+    const isStandardAvbl = !isDeparted && !isRegret && (
+      combined.includes('AVAILABLE') ||
+      combined.includes('AVL') ||
+      combined.includes('CONFIRM') ||
+      combined.includes('CNF')
+    );
+
+    // Extract seat count from item.seatsCount or regex in text / code
+    let count = typeof item.seatsCount === 'number' ? item.seatsCount : 0;
+    if (count <= 0) {
+      const match = combined.match(/\d+/g);
+      if (match && match.length > 0) {
+        // In GNWL/WL or CURR_AVBL-0012, pick the last integer
+        count = parseInt(match[match.length - 1], 10);
+      }
+    }
+
+    // In Indian Railways CRIS PRS, CURR_AVBL guaranteed seats are available!
+    // Even if no count was specified in string, at least 1 berth is available.
+    if (isCurrAvbl && count <= 0) {
+      count = 4;
+    }
+    if (isStandardAvbl && count <= 0) {
+      count = 1;
+    }
+
+    const isAvailable = !isDeparted && !isRegret && (isCurrAvbl || (isStandardAvbl && count > 0));
+
+    let displayStatusText = item.statusText || item.availabilityDisplayName || item.AvailabilityDisplayName || item.availability || item.Availability;
+    if (!displayStatusText || displayStatusText === 'AVAILABLE') {
+      displayStatusText = isCurrAvbl ? `CURR_AVBL ${count}` : (isAvailable ? `Available ${count}` : 'Not Available');
+    }
 
     return {
       isAvailable,
       isCurrAvbl,
-      statusCode: isCurrAvbl ? 'CURR_AVBL' : (isAvailable ? 'AVAILABLE' : (isDeparted ? 'DEPARTED' : code)),
-      statusText: item.statusText || (isAvailable ? `Available ${count}` : 'Not Available'),
+      statusCode: isCurrAvbl ? 'CURR_AVBL' : (isAvailable ? 'AVAILABLE' : (isDeparted ? 'DEPARTED' : (code || 'REGRET'))),
+      statusText: displayStatusText,
       seatsCount: count,
-      probability: item.probability,
+      probability: item.probability || item.prediction || item.predictionDisplayName,
       isDeparted
     };
   }

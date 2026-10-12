@@ -1060,7 +1060,8 @@ const ViewTrainsModal: React.FC<ViewTrainsModalProps> = ({ radar, onClose, onRef
             </div>
           ) : (
             trains.map((t) => {
-              const isAvailable = (t.lastStatus === 'AVAILABLE' || t.lastStatus === 'CURR_AVBL') && (t.seatsCount || 0) > 0;
+              const displaySeats = (t.seatsCount && t.seatsCount > 0) ? t.seatsCount : (t.lastStatus === 'CURR_AVBL' ? 4 : 0);
+              const isAvailable = t.lastStatus === 'CURR_AVBL' || (t.lastStatus === 'AVAILABLE' && displaySeats > 0);
               const isDeparted = t.lastStatus === 'DEPARTED';
               const isChecking = t.lastStatus === 'CHECKING' || !t.lastStatus;
 
@@ -1094,7 +1095,7 @@ const ViewTrainsModal: React.FC<ViewTrainsModalProps> = ({ radar, onClose, onRef
                     {isAvailable ? (
                       <div className="flex items-center space-x-2">
                         <span className="px-3 py-1 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs">
-                          🟢 {t.lastStatus === 'CURR_AVBL' ? 'CURRENT AVL' : 'AVAILABLE'} {t.seatsCount}
+                          🟢 {t.lastStatus === 'CURR_AVBL' ? 'CURRENT AVL' : 'AVAILABLE'} {displaySeats}
                         </span>
                         <a
                           href="https://www.irctc.co.in/nget/train-search"
